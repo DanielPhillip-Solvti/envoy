@@ -17,7 +17,16 @@
     </nav>
   </header>
   <main class="page-shell">
-    {{template .Body .Data}}
+    {{if eq .Body "home_page"}}
+      {{template "home_page" .Data}}
+    {{else if eq .Body "agent_page"}}
+      {{template "agent_page" .Data}}
+    {{else}}
+      <section class="panel">
+        <h1>Unknown view</h1>
+        <p>The requested view could not be rendered.</p>
+      </section>
+    {{end}}
   </main>
 </body>
 </html>
