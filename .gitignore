@@ -1,3 +1,4 @@
 /agent
 /platform
 /var/
+.env

@@ -7,6 +7,22 @@ For local stack bring-up, run docker compose up (platform + NATS).
 
 Using docker compose pulls the latest platform image, so local source changes may not be reflected.
 
+## Environment Variables
+
+Yes, this repo now includes [example.env](example.env) as a template.
+
+Local/dev setup:
+1. Copy template: cp example.env .env
+2. Fill real values for OAuth fields:
+	- ENVOY_GITHUB_CLIENT_ID
+	- ENVOY_GITHUB_CLIENT_SECRET
+	- ENVOY_GITHUB_CALLBACK_URL
+	- If you need to create/configure a GitHub token, use: https://github.com/settings/personal-access-tokens
+3. Keep ENVOY_SESSION_SECURE=false for local HTTP.
+4. Start platform with those env vars loaded (for compose, make sure .env is present).
+
+Do not commit real credentials.
+
 ## VM Agent Install Recommendation
 
 Preferred approach: install only the agent binary on the VM, not the full envoy repo.

@@ -42,6 +42,13 @@
         const basePath = logsTabButton.getAttribute("hx-get").split("?")[0];
         logsTabButton.setAttribute("hx-get", `${basePath}?environment=${encodeURIComponent(selectedEnvironment)}`);
       }
+
+      const commitsTabButton = document.getElementById("commits-tab-button");
+      if (commitsTabButton && selectedEnvironment) {
+        const basePath = commitsTabButton.getAttribute("hx-get").split("?")[0];
+        commitsTabButton.setAttribute("hx-get", `${basePath}?environment=${encodeURIComponent(selectedEnvironment)}`);
+      }
+
       setActiveTab("logs");
       return;
     }
@@ -59,7 +66,11 @@
     if (event.target && event.target.id === "tab-panel") {
       const active = document.querySelector("[data-tab-link].active");
       if (!active) {
-        setActiveTab("events");
+        if (document.querySelector("[data-tab-link='commits']")) {
+          setActiveTab("commits");
+        } else {
+          setActiveTab("events");
+        }
       }
     }
   });

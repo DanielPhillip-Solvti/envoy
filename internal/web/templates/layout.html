@@ -11,9 +11,14 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">envoy</div>
+    <a class="brand brand-link" href="/">envoy</a>
     <nav class="top-actions">
-      <a class="home-link" href="/">Home</a>
+      {{if .User}}
+        <span class="top-user">{{if .User.Name}}{{.User.Name}}{{else}}{{.User.Login}}{{end}}</span>
+        <form method="post" action="/auth/logout" class="logout-form">
+          <button type="submit" class="top-link-button">Logout</button>
+        </form>
+      {{end}}
     </nav>
   </header>
   <main class="page-shell">

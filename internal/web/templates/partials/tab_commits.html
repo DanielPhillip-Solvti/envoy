@@ -1,0 +1,26 @@
+{{define "tab_commits"}}
+<section>
+  <div class="panel-head">
+    <h2>Commit History{{if .SelectedEnvironment}} <span class="muted" style="font-weight:400">· {{.SelectedEnvironment}}</span>{{end}}</h2>
+    <button class="ghost" hx-get="/agents/{{.AgentID}}/tabs/commits{{if .SelectedEnvironment}}?environment={{.SelectedEnvironment}}{{end}}" hx-target="#tab-panel" hx-swap="innerHTML">Refresh</button>
+  </div>
+
+  {{if .CommitHistoryError}}
+    <p class="muted">{{.CommitHistoryError}}</p>
+  {{else if .Commits}}
+    <ul class="commit-list">
+      {{range .Commits}}
+        <li class="commit-item">
+          <a class="commit-link" href="{{.CommitURL}}" target="_blank" rel="noopener noreferrer">
+            <span class="commit-sha">{{.ShortSHA}}</span>
+            <span class="commit-message">{{.Message}}</span>
+          </a>
+          <span class="commit-meta">{{if .Author}}{{.Author}}{{else}}unknown{{end}} · {{.PushedAt.Format "2006-01-02 15:04"}}</span>
+        </li>
+      {{end}}
+    </ul>
+  {{else}}
+    <p class="muted">No commits available for this environment branch yet.</p>
+  {{end}}
+</section>
+{{end}}

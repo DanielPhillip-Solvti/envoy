@@ -33,7 +33,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           web.NewServer(bus, state),
+		Handler:           web.NewServer(bus, state, cfg),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

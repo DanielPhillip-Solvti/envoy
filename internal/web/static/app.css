@@ -63,6 +63,25 @@ a { color: inherit; text-decoration: none; }
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #fff;
+  transition: text-shadow 0.2s;
+}
+
+.brand:hover {
+  text-shadow: 0 0 22px rgba(234, 236, 236, 0.8);
+}
+
+.brand-link {
+  color: #fff;
+}
+
+.brand-link:hover {
+  color: #fff;
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .home-link {
@@ -77,6 +96,31 @@ a { color: inherit; text-decoration: none; }
 .home-link:hover {
   background: rgba(255,255,255,0.08);
   color: #fff;
+}
+
+.top-user {
+  font-size: 12px;
+  color: #b5c5d8;
+  padding: 0 4px;
+}
+
+.logout-form {
+  margin: 0;
+}
+
+.top-link-button {
+  height: 29px;
+  padding: 0 11px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.18);
+  background: transparent;
+  color: #dce6f4;
+  font-size: 12px;
+}
+
+.top-link-button:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.3);
 }
 
 /* ── Page shell ── */
@@ -237,6 +281,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 .env-button {
+  display: block;
   width: 100%;
   background: transparent;
   border: 1px solid transparent;
@@ -261,22 +306,7 @@ a { color: inherit; text-decoration: none; }
   font-weight: 600;
 }
 
-.metrics dl {
-  display: grid;
-}
 
-.metrics dl div {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 5px 4px;
-  border-top: 1px solid var(--border-subtle);
-  gap: 8px;
-  font-size: 12px;
-}
-
-.metrics dt { color: var(--text-muted); }
-.metrics dd { font-weight: 600; font-size: 13px; }
 
 /* ── Agent main ── */
 .agent-main {
@@ -458,6 +488,57 @@ button.ghost:hover {
   font-size: 11px;
   white-space: nowrap;
 }
+
+/* ── Commits ── */
+.commit-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 4px;
+}
+
+.commit-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 12px;
+  background:white;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.commit-item:first-child { border-top: 1px solid var(--border-subtle); }
+
+.commit-link {
+  display: contents;
+}
+
+.commit-sha {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.commit-message {
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.commit-meta {
+  font-size: 11px;
+  color: var(--text-subtle);
+  white-space: nowrap;
+}
+
+.commit-item:hover .commit-sha { color: var(--accent-hover); }
+.commit-item:hover .commit-message { color: var(--accent); }
 
 /* ── Log box ── */
 .log-box {

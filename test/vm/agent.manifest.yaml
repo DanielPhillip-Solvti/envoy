@@ -1,6 +1,6 @@
 version: 1
 name: local-test-vm
-repo: ""
+repo: "DanielPhillip-Solvti/envoy"
 environments: test/vm/envs
 docker:
   compose_file: docker-compose.yaml

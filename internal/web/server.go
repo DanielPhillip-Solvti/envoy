@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"fmt"
 	"html/template"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/example/envoy/internal/config"
 	"github.com/example/envoy/internal/platform"
 	"github.com/example/envoy/internal/queue"
 )
@@ -22,12 +24,15 @@ type Server struct {
 	bus   *queue.Bus
 	state *platform.State
 	tmpl  *template.Template
+	auth  *authManager
+	gh    *githubClient
 }
 
 type layoutView struct {
 	Title string
 	Body  string
 	Data  any
+	User  *authUser
 }
 
 type homePageData struct {
@@ -38,12 +43,25 @@ type agentPageData struct {
 	AgentID             string
 	AgentName           string
 	Agent               platform.AgentView
+	OrderedEnvironments []queue.EnvironmentStatus
 	SelectedEnvironment string
 	SelectedService     string
 	Services            []string
 	Events              []queue.CommandEvent
 	Files               []queue.FileResponse
 	Logs                []queue.LogEvent
+	CanViewCommits      bool
+	Commits             []commitView
+	CommitHistoryError  string
+}
+
+type commitView struct {
+	SHA       string
+	ShortSHA  string
+	Message   string
+	Author    string
+	PushedAt  time.Time
+	CommitURL string
 }
 
 //go:embed templates/*.html templates/partials/*.html
@@ -52,15 +70,22 @@ var templateFS embed.FS
 //go:embed static/*
 var staticFS embed.FS
 
-func NewServer(bus *queue.Bus, state *platform.State) http.Handler {
+func NewServer(bus *queue.Bus, state *platform.State, cfg config.Platform) http.Handler {
 	tmpl := template.Must(template.ParseFS(templateFS, "templates/*.html", "templates/partials/*.html"))
 	staticSubFS := mustSubFS(staticFS, "static")
-	s := &Server{bus: bus, state: state, tmpl: tmpl}
+	s := &Server{
+		bus:   bus,
+		state: state,
+		tmpl:  tmpl,
+		auth:  newAuthManager(cfg.SessionSecure),
+		gh:    newGitHubClient(cfg.GitHubClientID, cfg.GitHubClientSecret, cfg.GitHubCallbackURL),
+	}
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticSubFS))))
 	mux.HandleFunc("GET /", s.agents)
 	mux.HandleFunc("GET /agents", s.agents)
 	mux.HandleFunc("GET /agents/{agentID}", s.agent)
+	mux.HandleFunc("GET /agents/{agentID}/tabs/commits", s.agentTabCommits)
 	mux.HandleFunc("GET /agents/{agentID}/tabs/events", s.agentTabEvents)
 	mux.HandleFunc("GET /agents/{agentID}/tabs/logs", s.agentTabLogs)
 	mux.HandleFunc("GET /agents/{agentID}/tabs/commands", s.agentTabCommands)
@@ -74,40 +99,62 @@ func NewServer(bus *queue.Bus, state *platform.State) http.Handler {
 	mux.HandleFunc("GET /commands/{commandID}/events", s.commandEvents)
 	mux.HandleFunc("GET /auth/github/login", s.githubLogin)
 	mux.HandleFunc("GET /auth/github/callback", s.githubCallback)
+	mux.HandleFunc("POST /auth/logout", s.logout)
 	return mux
 }
 
 func (s *Server) agents(w http.ResponseWriter, r *http.Request) {
-	agents := s.state.Agents()
-	for _, agent := range agents {
-		s.requestCapabilitiesIfMissing(agent)
+	session, ok := s.requireAuth(w, r)
+	if !ok {
+		return
 	}
-	sort.Slice(agents, func(i, j int) bool {
-		return agentDisplayName(agents[i]) < agentDisplayName(agents[j])
+	agents := s.state.Agents()
+	visible := make([]platform.AgentView, 0, len(agents))
+	for _, agent := range agents {
+		if !s.canViewAgent(r.Context(), session.AccessToken, agent) {
+			continue
+		}
+		s.requestCapabilitiesIfMissing(agent)
+		visible = append(visible, agent)
+	}
+	sort.Slice(visible, func(i, j int) bool {
+		return agentDisplayName(visible[i]) < agentDisplayName(visible[j])
 	})
-	s.renderLayout(w, http.StatusOK, "Envoy | Home", "home_page", homePageData{Agents: agents})
+	s.renderLayout(w, http.StatusOK, "Envoy | Home", "home_page", homePageData{Agents: visible}, &session.User)
 }
 
 func (s *Server) agent(w http.ResponseWriter, r *http.Request) {
-	data, ok := s.agentData(r.PathValue("agentID"), r.URL.Query().Get("environment"), r.URL.Query().Get("service"))
+	session, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
+	data, ok := s.agentData(r.Context(), session, r.PathValue("agentID"), r.URL.Query().Get("environment"), r.URL.Query().Get("service"))
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	s.renderLayout(w, http.StatusOK, "Envoy | "+data.AgentName, "agent_page", data)
+	s.renderLayout(w, http.StatusOK, "Envoy | "+data.AgentName, "agent_page", data, &session.User)
 }
 
 func (s *Server) environment(w http.ResponseWriter, r *http.Request) {
-	data, ok := s.agentData(r.PathValue("agentID"), r.PathValue("environment"), r.URL.Query().Get("service"))
+	session, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
+	data, ok := s.agentData(r.Context(), session, r.PathValue("agentID"), r.PathValue("environment"), r.URL.Query().Get("service"))
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	s.renderLayout(w, http.StatusOK, "Envoy | "+data.AgentName, "agent_page", data)
+	s.renderLayout(w, http.StatusOK, "Envoy | "+data.AgentName, "agent_page", data, &session.User)
 }
 
 func (s *Server) agentTabEvents(w http.ResponseWriter, r *http.Request) {
-	data, ok := s.agentData(r.PathValue("agentID"), r.URL.Query().Get("environment"), r.URL.Query().Get("service"))
+	session, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
+	data, ok := s.agentData(r.Context(), session, r.PathValue("agentID"), r.URL.Query().Get("environment"), r.URL.Query().Get("service"))
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -115,8 +162,25 @@ func (s *Server) agentTabEvents(w http.ResponseWriter, r *http.Request) {
 	s.renderTemplate(w, http.StatusOK, "tab_events", data)
 }
 
+func (s *Server) agentTabCommits(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
+	data, ok := s.agentData(r.Context(), session, r.PathValue("agentID"), r.URL.Query().Get("environment"), r.URL.Query().Get("service"))
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	s.renderTemplate(w, http.StatusOK, "tab_commits", data)
+}
+
 func (s *Server) agentTabLogs(w http.ResponseWriter, r *http.Request) {
-	data, ok := s.agentData(r.PathValue("agentID"), r.URL.Query().Get("environment"), r.URL.Query().Get("service"))
+	session, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
+	data, ok := s.agentData(r.Context(), session, r.PathValue("agentID"), r.URL.Query().Get("environment"), r.URL.Query().Get("service"))
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -125,7 +189,11 @@ func (s *Server) agentTabLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) agentTabCommands(w http.ResponseWriter, r *http.Request) {
-	data, ok := s.agentData(r.PathValue("agentID"), r.URL.Query().Get("environment"), r.URL.Query().Get("service"))
+	session, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
+	data, ok := s.agentData(r.Context(), session, r.PathValue("agentID"), r.URL.Query().Get("environment"), r.URL.Query().Get("service"))
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -134,7 +202,11 @@ func (s *Server) agentTabCommands(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) agentTabFiles(w http.ResponseWriter, r *http.Request) {
-	data, ok := s.agentData(r.PathValue("agentID"), r.URL.Query().Get("environment"), r.URL.Query().Get("service"))
+	session, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
+	data, ok := s.agentData(r.Context(), session, r.PathValue("agentID"), r.URL.Query().Get("environment"), r.URL.Query().Get("service"))
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -143,10 +215,15 @@ func (s *Server) agentTabFiles(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) requestLogs(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
 	agentID := r.PathValue("agentID")
 	environment := r.PathValue("environment")
 	selectedService := r.FormValue("service")
-	if _, ok := s.state.Agent(agentID); !ok {
+	agent, ok := s.state.Agent(agentID)
+	if !ok || !s.canViewAgent(r.Context(), session.AccessToken, agent) {
 		http.NotFound(w, r)
 		return
 	}
@@ -163,7 +240,7 @@ func (s *Server) requestLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if isHX(r) {
-		data, ok := s.agentData(agentID, environment, selectedService)
+		data, ok := s.agentData(r.Context(), session, agentID, environment, selectedService)
 		if !ok {
 			http.NotFound(w, r)
 			return
@@ -179,8 +256,13 @@ func (s *Server) requestLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createCommand(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
 	agentID := r.PathValue("agentID")
-	if _, ok := s.state.Agent(agentID); !ok {
+	agent, ok := s.state.Agent(agentID)
+	if !ok || !s.canViewAgent(r.Context(), session.AccessToken, agent) {
 		http.NotFound(w, r)
 		return
 	}
@@ -191,7 +273,7 @@ func (s *Server) createCommand(w http.ResponseWriter, r *http.Request) {
 		Name:        r.FormValue("name"),
 		Environment: r.FormValue("environment"),
 		Args:        r.Form["args"],
-		RequestedBy: "local-dev",
+		RequestedBy: session.User.Login,
 		RequestedAt: time.Now().UTC(),
 	}
 	if req.Scope == "" || req.Name == "" {
@@ -213,8 +295,13 @@ func (s *Server) createCommand(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) requestFile(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
 	agentID := r.PathValue("agentID")
-	if _, ok := s.state.Agent(agentID); !ok {
+	agent, ok := s.state.Agent(agentID)
+	if !ok || !s.canViewAgent(r.Context(), session.AccessToken, agent) {
 		http.NotFound(w, r)
 		return
 	}
@@ -240,6 +327,10 @@ func (s *Server) requestFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) fileRequestStatus(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
 	requestID := r.PathValue("requestID")
 	response, ok := s.state.FileResponse(requestID)
 	if !ok {
@@ -247,6 +338,10 @@ func (s *Server) fileRequestStatus(w http.ResponseWriter, r *http.Request) {
 			RequestID: requestID,
 			Pending:   true,
 		})
+		return
+	}
+	if agent, ok := s.state.Agent(response.AgentID); !ok || !s.canViewAgent(r.Context(), session.AccessToken, agent) {
+		http.NotFound(w, r)
 		return
 	}
 
@@ -260,9 +355,17 @@ func (s *Server) fileRequestStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) downloadFile(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
 	requestID := r.PathValue("requestID")
 	response, ok := s.state.FileResponse(requestID)
 	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	if agent, ok := s.state.Agent(response.AgentID); !ok || !s.canViewAgent(r.Context(), session.AccessToken, agent) {
 		http.NotFound(w, r)
 		return
 	}
@@ -314,8 +417,20 @@ func (s *Server) downloadFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) commandEvents(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
 	commandID := r.PathValue("commandID")
-	s.renderTemplate(w, http.StatusOK, "command_events", s.state.CommandEvents(commandID))
+	events := s.state.CommandEvents(commandID)
+	if len(events) > 0 {
+		agent, ok := s.state.Agent(events[0].AgentID)
+		if !ok || !s.canViewAgent(r.Context(), session.AccessToken, agent) {
+			http.NotFound(w, r)
+			return
+		}
+	}
+	s.renderTemplate(w, http.StatusOK, "command_events", events)
 }
 
 type fileRequestStatusData struct {
@@ -326,12 +441,12 @@ type fileRequestStatusData struct {
 	Pending   bool
 }
 
-func (s *Server) githubLogin(w http.ResponseWriter, _ *http.Request) {
-	http.Error(w, "GitHub OAuth is not configured in this scaffold", http.StatusNotImplemented)
+func (s *Server) githubLogin(w http.ResponseWriter, r *http.Request) {
+	s.startGitHubLogin(w, r)
 }
 
-func (s *Server) githubCallback(w http.ResponseWriter, _ *http.Request) {
-	http.Error(w, "GitHub OAuth is not configured in this scaffold", http.StatusNotImplemented)
+func (s *Server) githubCallback(w http.ResponseWriter, r *http.Request) {
+	s.handleGitHubCallback(w, r)
 }
 
 func commandID() string {
@@ -342,9 +457,12 @@ func requestID() string {
 	return fmt.Sprintf("file-%d", time.Now().UnixNano())
 }
 
-func (s *Server) agentData(agentID, selectedEnvironment, selectedService string) (agentPageData, bool) {
+func (s *Server) agentData(ctx context.Context, session authSession, agentID, selectedEnvironment, selectedService string) (agentPageData, bool) {
 	agent, ok := s.state.Agent(agentID)
 	if !ok {
+		return agentPageData{}, false
+	}
+	if !s.canViewAgent(ctx, session.AccessToken, agent) {
 		return agentPageData{}, false
 	}
 	s.requestCapabilitiesIfMissing(agent)
@@ -357,31 +475,49 @@ func (s *Server) agentData(agentID, selectedEnvironment, selectedService string)
 	}
 	agentName := agentDisplayName(agent)
 
-	if selectedEnvironment == "" && len(agent.Heartbeat.Environments) > 0 {
-		selectedEnvironment = agent.Heartbeat.Environments[0].Name
+	orderedEnvironments := orderedEnvironments(agent.Heartbeat.Environments)
+
+	if selectedEnvironment == "" && len(orderedEnvironments) > 0 {
+		selectedEnvironment = orderedEnvironments[0].Name
 	}
 
-	services := servicesForEnvironment(agent.Heartbeat.Environments, selectedEnvironment)
+	services := servicesForEnvironment(orderedEnvironments, selectedEnvironment)
 	if selectedService != "" && !containsService(services, selectedService) {
 		selectedService = ""
 	}
 
-	return agentPageData{
+	data := agentPageData{
 		AgentID:             agentID,
 		AgentName:           agentName,
 		Agent:               agent,
+		OrderedEnvironments: orderedEnvironments,
 		SelectedEnvironment: selectedEnvironment,
 		SelectedService:     selectedService,
 		Services:            services,
 		Events:              s.state.AgentEvents(agentID),
 		Files:               filterFileResponsesByAgent(s.state.FileResponses(), agentID),
 		Logs:                filterLogsByService(s.state.Logs(agentID, selectedEnvironment), selectedService),
-	}, true
+	}
+
+	repo := strings.TrimSpace(agent.Registration.Repo)
+	if repo != "" && selectedEnvironment != "" {
+		commits, err := s.gh.commitHistory(ctx, session.AccessToken, repo, selectedEnvironment, 25)
+		if err == nil {
+			if len(commits) > 0 {
+				data.CanViewCommits = true
+				data.Commits = commits
+			}
+		} else {
+			data.CommitHistoryError = err.Error()
+		}
+	}
+
+	return data, true
 }
 
-func (s *Server) renderLayout(w http.ResponseWriter, status int, title, body string, data any) {
+func (s *Server) renderLayout(w http.ResponseWriter, status int, title, body string, data any, user *authUser) {
 	var buf bytes.Buffer
-	if err := s.tmpl.ExecuteTemplate(&buf, "layout", layoutView{Title: title, Body: body, Data: data}); err != nil {
+	if err := s.tmpl.ExecuteTemplate(&buf, "layout", layoutView{Title: title, Body: body, Data: data, User: user}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -431,6 +567,32 @@ func servicesForEnvironment(envs []queue.EnvironmentStatus, environment string) 
 		return services
 	}
 	return nil
+}
+
+func orderedEnvironments(envs []queue.EnvironmentStatus) []queue.EnvironmentStatus {
+	result := make([]queue.EnvironmentStatus, len(envs))
+	copy(result, envs)
+	sort.Slice(result, func(i, j int) bool {
+		ri := environmentRank(result[i].Name)
+		rj := environmentRank(result[j].Name)
+		if ri != rj {
+			return ri < rj
+		}
+		return strings.ToLower(result[i].Name) < strings.ToLower(result[j].Name)
+	})
+	return result
+}
+
+func environmentRank(name string) int {
+	value := strings.ToLower(strings.TrimSpace(name))
+	switch value {
+	case "main":
+		return 0
+	case "master":
+		return 1
+	default:
+		return 2
+	}
 }
 
 func containsService(services []string, selected string) bool {

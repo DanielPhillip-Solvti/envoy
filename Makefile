@@ -22,6 +22,14 @@ run-nats:
 	fi
 
 run-platform:
+	@set -a; \
+	if [ -f .env ]; then . ./.env; fi; \
+	if [ "$$ENVOY_NATS_URL" = "nats://nats:4222" ]; then \
+		echo "ENVOY_NATS_URL points to docker host 'nats'; switching to nats://127.0.0.1:4222 for local run"; \
+		ENVOY_NATS_URL="nats://127.0.0.1:4222"; \
+		export ENVOY_NATS_URL; \
+	fi; \
+	set +a; \
 	go run ./cmd/platform
 
 run-agent:

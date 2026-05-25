@@ -8,6 +8,8 @@ services:
 
   platform:
     image: ghcr.io/danielphillip-solvti/envoy-platform:latest
+    env_file:
+      - .env
     environment:
       ENVOY_HTTP_ADDR: ":8080"
       ENVOY_NATS_URL: nats://nats:4222
