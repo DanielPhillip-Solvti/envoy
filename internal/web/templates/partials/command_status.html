@@ -1,0 +1,26 @@
+{{define "command_status_empty"}}
+<p class="muted">Run a command to stream events here.</p>
+{{end}}
+
+{{define "command_status"}}
+<div>
+  <h3>Command {{.CommandID}}</h3>
+  <div hx-get="/commands/{{.CommandID}}/events" hx-trigger="load, every 2s" hx-swap="innerHTML">
+    Loading events...
+  </div>
+</div>
+{{end}}
+
+{{define "command_events"}}
+<div class="event-list">
+  {{range .}}
+    <article class="event-item">
+      <div class="event-status {{.Status}}">{{.Status}}</div>
+      <div class="event-message">{{if .Stream}}[{{.Stream}}] {{end}}{{.Message}}</div>
+      <div class="event-meta">exit {{.ExitCode}}</div>
+    </article>
+  {{else}}
+    <p class="muted">No events yet.</p>
+  {{end}}
+</div>
+{{end}}

@@ -1,0 +1,40 @@
+{{define "home_page"}}
+<section class="home-header">
+  <h1>Your Agents</h1>
+  <p>Realtime fleet overview powered by queue registrations and heartbeats.</p>
+</section>
+
+<section class="agent-grid">
+  {{range .Agents}}
+    <a class="agent-tile" href="/agents/{{.Registration.AgentID}}">
+      <div class="agent-tile-head">
+        <h2>{{.Registration.Name}}</h2>
+        <span class="chip">{{len .Heartbeat.Environments}} envs</span>
+      </div>
+      <dl>
+        <div>
+          <dt>Agent ID</dt>
+          <dd>{{.Registration.AgentID}}</dd>
+        </div>
+        <div>
+          <dt>Repository</dt>
+          <dd>{{if .Registration.Repo}}{{.Registration.Repo}}{{else}}not linked{{end}}</dd>
+        </div>
+        <div>
+          <dt>Scripts</dt>
+          <dd>{{len .Registration.Scripts}}</dd>
+        </div>
+        <div>
+          <dt>Files</dt>
+          <dd>{{len .Registration.Files}}</dd>
+        </div>
+      </dl>
+    </a>
+  {{else}}
+    <article class="empty-state">
+      <h2>No agents connected</h2>
+      <p>Start an agent on a VM and it will appear here.</p>
+    </article>
+  {{end}}
+</section>
+{{end}}

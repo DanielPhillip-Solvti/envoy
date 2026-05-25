@@ -1,0 +1,36 @@
+{{define "tab_files"}}
+<section>
+  <div class="panel-head">
+    <h2>Files</h2>
+    <button class="ghost" hx-get="/agents/{{.Agent.Registration.AgentID}}/tabs/files" hx-target="#tab-panel" hx-swap="innerHTML">Refresh</button>
+  </div>
+
+  <div class="files-grid">
+    {{range .Agent.Registration.Files}}
+      <form class="file-form" hx-post="/agents/{{$.Agent.Registration.AgentID}}/files/{{.Key}}" hx-target="#tab-panel" hx-swap="innerHTML">
+        <h3>{{.Key}}</h3>
+        <button type="submit">Request file</button>
+      </form>
+    {{else}}
+      <p class="muted">No file capabilities were registered by this agent.</p>
+    {{end}}
+  </div>
+
+  <h3>File responses</h3>
+  <ul class="file-responses">
+    {{range .Files}}
+      <li>
+        <strong>{{.FileKey}}</strong>
+        {{if .Error}}
+          <span class="error">{{.Error}}</span>
+        {{else}}
+          <a href="{{.ObjectURL}}">{{.ObjectURL}}</a>
+          <span class="muted">({{.Size}} bytes)</span>
+        {{end}}
+      </li>
+    {{else}}
+      <li class="muted">No file responses yet.</li>
+    {{end}}
+  </ul>
+</section>
+{{end}}

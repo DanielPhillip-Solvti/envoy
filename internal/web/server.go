@@ -1,9 +1,12 @@
 package web
 
 import (
+	"bytes"
+	"embed"
 	"fmt"
 	"html/template"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/example/envoy/internal/platform"
@@ -13,14 +16,45 @@ import (
 type Server struct {
 	bus   *queue.Bus
 	state *platform.State
+	tmpl  *template.Template
 }
 
+type layoutView struct {
+	Title string
+	Body  string
+	Data  any
+}
+
+type homePageData struct {
+	Agents []platform.AgentView
+}
+
+type agentPageData struct {
+	Agent               platform.AgentView
+	SelectedEnvironment string
+	Events              []queue.CommandEvent
+	Files               []queue.FileResponse
+	Logs                []queue.LogEvent
+}
+
+//go:embed templates/*.html templates/partials/*.html
+var templateFS embed.FS
+
+//go:embed static/*
+var staticFS embed.FS
+
 func NewServer(bus *queue.Bus, state *platform.State) http.Handler {
-	s := &Server{bus: bus, state: state}
+	tmpl := template.Must(template.ParseFS(templateFS, "templates/*.html", "templates/partials/*.html"))
+	s := &Server{bus: bus, state: state, tmpl: tmpl}
 	mux := http.NewServeMux()
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 	mux.HandleFunc("GET /", s.agents)
 	mux.HandleFunc("GET /agents", s.agents)
 	mux.HandleFunc("GET /agents/{agentID}", s.agent)
+	mux.HandleFunc("GET /agents/{agentID}/tabs/events", s.agentTabEvents)
+	mux.HandleFunc("GET /agents/{agentID}/tabs/logs", s.agentTabLogs)
+	mux.HandleFunc("GET /agents/{agentID}/tabs/commands", s.agentTabCommands)
+	mux.HandleFunc("GET /agents/{agentID}/tabs/files", s.agentTabFiles)
 	mux.HandleFunc("GET /agents/{agentID}/env/{environment}", s.environment)
 	mux.HandleFunc("POST /agents/{agentID}/env/{environment}/logs", s.requestLogs)
 	mux.HandleFunc("POST /agents/{agentID}/commands", s.createCommand)
@@ -32,38 +66,65 @@ func NewServer(bus *queue.Bus, state *platform.State) http.Handler {
 }
 
 func (s *Server) agents(w http.ResponseWriter, r *http.Request) {
-	_ = agentsTemplate.Execute(w, s.state.Agents())
+	agents := s.state.Agents()
+	sort.Slice(agents, func(i, j int) bool {
+		return agents[i].Registration.Name < agents[j].Registration.Name
+	})
+	s.renderLayout(w, http.StatusOK, "Envoy | Home", "home_page", homePageData{Agents: agents})
 }
 
 func (s *Server) agent(w http.ResponseWriter, r *http.Request) {
-	agent, ok := s.state.Agent(r.PathValue("agentID"))
+	data, ok := s.agentData(r.PathValue("agentID"), r.URL.Query().Get("environment"))
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	data := struct {
-		Agent platform.AgentView
-		Files []queue.FileResponse
-	}{Agent: agent, Files: s.state.FileResponses()}
-	_ = agentTemplate.Execute(w, data)
+	s.renderLayout(w, http.StatusOK, "Envoy | "+data.Agent.Registration.Name, "agent_page", data)
 }
 
 func (s *Server) environment(w http.ResponseWriter, r *http.Request) {
-	agent, ok := s.state.Agent(r.PathValue("agentID"))
+	data, ok := s.agentData(r.PathValue("agentID"), r.PathValue("environment"))
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	data := struct {
-		Agent       platform.AgentView
-		Environment string
-		Logs        []queue.LogEvent
-	}{
-		Agent:       agent,
-		Environment: r.PathValue("environment"),
-		Logs:        s.state.Logs(r.PathValue("agentID"), r.PathValue("environment")),
+	s.renderLayout(w, http.StatusOK, "Envoy | "+data.Agent.Registration.Name, "agent_page", data)
+}
+
+func (s *Server) agentTabEvents(w http.ResponseWriter, r *http.Request) {
+	data, ok := s.agentData(r.PathValue("agentID"), r.URL.Query().Get("environment"))
+	if !ok {
+		http.NotFound(w, r)
+		return
 	}
-	_ = environmentTemplate.Execute(w, data)
+	s.renderTemplate(w, http.StatusOK, "tab_events", data)
+}
+
+func (s *Server) agentTabLogs(w http.ResponseWriter, r *http.Request) {
+	data, ok := s.agentData(r.PathValue("agentID"), r.URL.Query().Get("environment"))
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	s.renderTemplate(w, http.StatusOK, "tab_logs", data)
+}
+
+func (s *Server) agentTabCommands(w http.ResponseWriter, r *http.Request) {
+	data, ok := s.agentData(r.PathValue("agentID"), r.URL.Query().Get("environment"))
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	s.renderTemplate(w, http.StatusOK, "tab_commands", data)
+}
+
+func (s *Server) agentTabFiles(w http.ResponseWriter, r *http.Request) {
+	data, ok := s.agentData(r.PathValue("agentID"), r.URL.Query().Get("environment"))
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	s.renderTemplate(w, http.StatusOK, "tab_files", data)
 }
 
 func (s *Server) requestLogs(w http.ResponseWriter, r *http.Request) {
@@ -82,6 +143,15 @@ func (s *Server) requestLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.bus.PublishJSON(queue.SubjectLogRequest(agentID), req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	if isHX(r) {
+		data, ok := s.agentData(agentID, environment)
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		s.renderTemplate(w, http.StatusOK, "tab_logs", data)
 		return
 	}
 	http.Redirect(w, r, "/agents/"+agentID+"/env/"+environment, http.StatusSeeOther)
@@ -111,6 +181,12 @@ func (s *Server) createCommand(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
+	if isHX(r) {
+		s.renderTemplate(w, http.StatusOK, "command_status", struct {
+			CommandID string
+		}{CommandID: req.CommandID})
+		return
+	}
 	http.Redirect(w, r, "/commands/"+req.CommandID+"/events", http.StatusSeeOther)
 }
 
@@ -130,12 +206,21 @@ func (s *Server) requestFile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
+	if isHX(r) {
+		data, ok := s.agentData(agentID, r.URL.Query().Get("environment"))
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		s.renderTemplate(w, http.StatusOK, "tab_files", data)
+		return
+	}
 	http.Redirect(w, r, "/agents/"+agentID, http.StatusSeeOther)
 }
 
 func (s *Server) commandEvents(w http.ResponseWriter, r *http.Request) {
 	commandID := r.PathValue("commandID")
-	_ = commandEventsTemplate.Execute(w, s.state.CommandEvents(commandID))
+	s.renderTemplate(w, http.StatusOK, "command_events", s.state.CommandEvents(commandID))
 }
 
 func (s *Server) githubLogin(w http.ResponseWriter, _ *http.Request) {
@@ -154,88 +239,60 @@ func requestID() string {
 	return fmt.Sprintf("file-%d", time.Now().UnixNano())
 }
 
-var agentsTemplate = template.Must(template.New("agents").Parse(`<!doctype html>
-<html>
-<head>
-  <title>Envoy</title>
-  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-  <style>
-    body { font-family: system-ui, sans-serif; margin: 32px; background: #f7f7f4; color: #1f2428; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-    .card { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 16px; }
-    .muted { color: #667; }
-  </style>
-</head>
-<body>
-  <h1>Envoy Agents</h1>
-  <div class="grid">
-    {{ range . }}
-      <a class="card" href="/agents/{{ .Registration.AgentID }}">
-        <h2>{{ .Registration.Name }}</h2>
-        <p class="muted">{{ .Registration.Repo }}</p>
-        <p>{{ len .Heartbeat.Environments }} environments</p>
-      </a>
-    {{ else }}
-      <p>No agents have registered yet.</p>
-    {{ end }}
-  </div>
-</body>
-</html>`))
+func (s *Server) agentData(agentID, selectedEnvironment string) (agentPageData, bool) {
+	agent, ok := s.state.Agent(agentID)
+	if !ok {
+		return agentPageData{}, false
+	}
 
-var agentTemplate = template.Must(template.New("agent").Parse(`<!doctype html>
-<html><body>
-<h1>{{ .Agent.Registration.Name }}</h1>
-  <section>
-    <h3>Commands</h3>
-    <ul>{{ range .Agent.Registration.Scripts }}
-      <li>
-        <form method="post" action="/agents/{{ $.Agent.Registration.AgentID }}/commands">
-          <input type="hidden" name="scope" value="{{ .Scope }}">
-          <input type="hidden" name="name" value="{{ .Name }}">
-          {{ if eq .Scope "env" }}<input name="environment" placeholder="environment">{{ end }}
-          {{ range .Args }}<input name="args" placeholder="{{ . }}">{{ end }}
-          <button type="submit">{{ .Scope }}: {{ .Name }}</button>
-        </form>
-      </li>
-    {{ end }}</ul>
-    <h3>Files</h3>
-    <ul>{{ range .Agent.Registration.Files }}
-      <li>
-        <form method="post" action="/agents/{{ $.Agent.Registration.AgentID }}/files/{{ .Key }}">
-          <button type="submit">{{ .Key }}</button>
-        </form>
-      </li>
-    {{ end }}</ul>
-    <h3>File Responses</h3>
-    <ul>{{ range .Files }}<li>{{ .FileKey }}: {{ if .Error }}{{ .Error }}{{ else }}{{ .ObjectURL }} ({{ .Size }} bytes){{ end }}</li>{{ end }}</ul>
-    <h3>Environments</h3>
-    <ul>{{ range .Agent.Heartbeat.Environments }}<li><a href="/agents/{{ $.Agent.Registration.AgentID }}/env/{{ .Name }}">{{ .Name }}</a></li>{{ end }}</ul>
-    <h3>Consumption</h3>
-    <pre>{{ printf "%+v" .Agent.Heartbeat.Consumption }}</pre>
-  </section>
-</body></html>`))
+	if selectedEnvironment == "" && len(agent.Heartbeat.Environments) > 0 {
+		selectedEnvironment = agent.Heartbeat.Environments[0].Name
+	}
 
-var environmentTemplate = template.Must(template.New("environment").Parse(`<!doctype html>
-<html><body>
-<h1>{{ .Agent.Registration.Name }} / {{ .Environment }}</h1>
-<nav>
-  <a href="/agents/{{ .Agent.Registration.AgentID }}">Commands</a>
-  <a href="/commands/example/events">Events</a>
-</nav>
-<form method="post" action="/agents/{{ .Agent.Registration.AgentID }}/env/{{ .Environment }}/logs">
-  <button type="submit">Refresh logs</button>
-</form>
-<h2>Services</h2>
-{{ range .Agent.Heartbeat.Environments }}
-  {{ if eq .Name $.Environment }}
-    <ul>{{ range $name, $status := .Services }}<li>{{ $name }}: {{ $status }}</li>{{ end }}</ul>
-  {{ end }}
-{{ end }}
-<h2>Logs</h2>
-<pre>{{ range .Logs }}{{ .Line }}
-{{ end }}</pre>
-</body></html>`))
+	return agentPageData{
+		Agent:               agent,
+		SelectedEnvironment: selectedEnvironment,
+		Events:              s.state.AgentEvents(agentID),
+		Files:               filterFileResponsesByAgent(s.state.FileResponses(), agentID),
+		Logs:                s.state.Logs(agentID, selectedEnvironment),
+	}, true
+}
 
-var commandEventsTemplate = template.Must(template.New("events").Parse(`{{ range . }}
-<div><strong>{{ .Status }}</strong> {{ .Stream }} {{ .Message }}</div>
-{{ end }}`))
+func (s *Server) renderLayout(w http.ResponseWriter, status int, title, body string, data any) {
+	var buf bytes.Buffer
+	if err := s.tmpl.ExecuteTemplate(&buf, "layout", layoutView{Title: title, Body: body, Data: data}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	_, _ = w.Write(buf.Bytes())
+}
+
+func (s *Server) renderTemplate(w http.ResponseWriter, status int, name string, data any) {
+	var buf bytes.Buffer
+	if err := s.tmpl.ExecuteTemplate(&buf, name, data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	_, _ = w.Write(buf.Bytes())
+}
+
+func filterFileResponsesByAgent(responses []queue.FileResponse, agentID string) []queue.FileResponse {
+	result := make([]queue.FileResponse, 0)
+	for _, response := range responses {
+		if response.AgentID == agentID {
+			result = append(result, response)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].SentAt.After(result[j].SentAt)
+	})
+	return result
+}
+
+func isHX(r *http.Request) bool {
+	return r.Header.Get("HX-Request") == "true"
+}

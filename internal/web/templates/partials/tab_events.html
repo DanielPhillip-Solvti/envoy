@@ -1,0 +1,19 @@
+{{define "tab_events"}}
+<section>
+  <div class="panel-head">
+    <h2>Queue events</h2>
+    <button class="ghost" hx-get="/agents/{{.Agent.Registration.AgentID}}/tabs/events" hx-target="#tab-panel" hx-swap="innerHTML">Refresh</button>
+  </div>
+  <div class="event-list">
+    {{range .Events}}
+      <article class="event-item">
+        <div class="event-status {{.Status}}">{{.Status}}</div>
+        <div class="event-message">{{if .Stream}}[{{.Stream}}] {{end}}{{.Message}}</div>
+        <div class="event-meta">{{if .SentAt.IsZero}}pending{{else}}{{.SentAt.Format "2006-01-02 15:04:05"}}{{end}}</div>
+      </article>
+    {{else}}
+      <p class="muted">No queue events yet for this agent.</p>
+    {{end}}
+  </div>
+</section>
+{{end}}

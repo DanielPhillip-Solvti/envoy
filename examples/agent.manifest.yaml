@@ -23,5 +23,9 @@ env_scripts:
     path: test/vm/scripts/restart.sh
     args: []
     timeout: 30s
+  up:
+    path: test/vm/scripts/up.sh
+    args: []
+    timeout: 30s
 files:
   sample: test/vm/files/sample.txt

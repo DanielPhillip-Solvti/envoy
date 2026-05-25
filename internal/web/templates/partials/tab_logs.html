@@ -1,0 +1,45 @@
+{{define "tab_logs"}}
+<section>
+  <div class="panel-head">
+    <h2>Environment logs</h2>
+    <div class="toolbar">
+      <form hx-get="/agents/{{.Agent.Registration.AgentID}}/tabs/logs" hx-target="#tab-panel" hx-swap="innerHTML">
+        <label for="environment">Env</label>
+        <select id="environment" name="environment">
+          {{range .Agent.Heartbeat.Environments}}
+            <option value="{{.Name}}" {{if eq $.SelectedEnvironment .Name}}selected{{end}}>{{.Name}}</option>
+          {{end}}
+        </select>
+        <button type="submit" class="ghost">Switch</button>
+      </form>
+      {{if .SelectedEnvironment}}
+      <form hx-post="/agents/{{.Agent.Registration.AgentID}}/env/{{.SelectedEnvironment}}/logs" hx-target="#tab-panel" hx-swap="innerHTML">
+        <button type="submit">Refresh from agent</button>
+      </form>
+      {{end}}
+    </div>
+  </div>
+
+  {{if .SelectedEnvironment}}
+    <h3 class="muted">Selected environment: {{.SelectedEnvironment}}</h3>
+    <h4>Services</h4>
+    <ul class="services">
+      {{range .Agent.Heartbeat.Environments}}
+        {{if eq .Name $.SelectedEnvironment}}
+          {{range $name, $status := .Services}}
+            <li><span>{{$name}}</span><strong>{{$status}}</strong></li>
+          {{else}}
+            <li><span>docker-compose</span><strong>unknown</strong></li>
+          {{end}}
+        {{end}}
+      {{end}}
+    </ul>
+
+    <pre class="log-box">{{range .Logs}}{{.Line}}
+{{else}}No log lines received yet. Click "Refresh from agent" to request the latest logs.
+{{end}}</pre>
+  {{else}}
+    <p class="muted">No environments were discovered for this agent yet.</p>
+  {{end}}
+</section>
+{{end}}

@@ -3,6 +3,7 @@ package platform
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"sync"
 	"time"
 
@@ -93,6 +94,26 @@ func (s *State) CommandEvents(commandID string) []queue.CommandEvent {
 	defer s.mu.RUnlock()
 	result := make([]queue.CommandEvent, len(s.events[commandID]))
 	copy(result, s.events[commandID])
+	return result
+}
+
+func (s *State) AgentEvents(agentID string) []queue.CommandEvent {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := make([]queue.CommandEvent, 0)
+	for _, events := range s.events {
+		for _, event := range events {
+			if event.AgentID == agentID {
+				result = append(result, event)
+			}
+		}
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].SentAt.After(result[j].SentAt)
+	})
+
 	return result
 }
 
