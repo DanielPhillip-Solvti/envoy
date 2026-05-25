@@ -1,46 +1,38 @@
 {{define "tab_logs"}}
 <section>
   <div class="panel-head">
-    <h2>Environment logs</h2>
+    <h2>Logs{{if .SelectedEnvironment}} <span class="muted" style="font-weight:400">· {{.SelectedEnvironment}}{{if .SelectedService}} / {{.SelectedService}}{{end}}</span>{{end}}</h2>
     {{if .SelectedEnvironment}}
     <form hx-post="/agents/{{.AgentID}}/env/{{.SelectedEnvironment}}/logs" hx-target="#tab-panel" hx-swap="innerHTML">
       <input type="hidden" name="service" value="{{.SelectedService}}">
-      <button type="submit">Refresh from agent</button>
+      <button type="submit" class="ghost">Refresh</button>
     </form>
     {{end}}
   </div>
 
   {{if .SelectedEnvironment}}
-    <h3 class="muted">Selected environment: {{.SelectedEnvironment}}{{if .SelectedService}} | Service: {{.SelectedService}}{{end}}</h3>
-    <h4>Services</h4>
-    <ul class="services">
-      <li>
-        <button class="service-link {{if eq .SelectedService ""}}active{{end}}" hx-get="/agents/{{.AgentID}}/tabs/logs?environment={{.SelectedEnvironment}}" hx-target="#tab-panel" hx-swap="innerHTML">
-          <span>All services</span>
-          <strong>filter off</strong>
-        </button>
-      </li>
+    <div class="service-bar">
+      <button class="service-pill {{if eq .SelectedService ""}}active{{end}}"
+        hx-get="/agents/{{.AgentID}}/tabs/logs?environment={{.SelectedEnvironment}}"
+        hx-target="#tab-panel" hx-swap="innerHTML">All services</button>
       {{range .Agent.Heartbeat.Environments}}
         {{if eq .Name $.SelectedEnvironment}}
           {{range $name, $status := .Services}}
-            <li>
-              <button class="service-link {{if eq $.SelectedService $name}}active{{end}}" hx-get="/agents/{{$.AgentID}}/tabs/logs?environment={{$.SelectedEnvironment}}&service={{$name}}" hx-target="#tab-panel" hx-swap="innerHTML">
-                <span>{{$name}}</span>
-                <strong>{{$status}}</strong>
-              </button>
-            </li>
-          {{else}}
-            <li><span>docker-compose</span><strong>unknown</strong></li>
+            <button class="service-pill {{if eq $.SelectedService $name}}active{{end}}"
+              hx-get="/agents/{{$.AgentID}}/tabs/logs?environment={{$.SelectedEnvironment}}&service={{$name}}"
+              hx-target="#tab-panel" hx-swap="innerHTML">
+              {{$name}}<span class="svc-status">{{$status}}</span>
+            </button>
           {{end}}
         {{end}}
       {{end}}
-    </ul>
+    </div>
 
     <pre class="log-box" data-autoscroll="bottom">{{range .Logs}}{{.Line}}
-{{else}}No log lines received yet. Click "Refresh from agent" to request the latest logs.
+{{else}}No log lines received yet. Click "Refresh" to request the latest logs from the agent.
 {{end}}</pre>
   {{else}}
-    <p class="muted">No environments were discovered for this agent yet.</p>
+    <p class="muted">Select an environment from the sidebar to view logs.</p>
   {{end}}
 </section>
 {{end}}

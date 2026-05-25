@@ -1,39 +1,44 @@
 {{define "agent_page"}}
 <div class="agent-layout">
   <aside class="agent-sidebar">
-    <h2>{{.AgentName}}</h2>
-    <p class="muted">{{.AgentID}}</p>
-    <h3>Environments</h3>
-    <ul>
-      {{range .Agent.Heartbeat.Environments}}
-        <li>
-          <button
-            class="env-button {{if eq $.SelectedEnvironment .Name}}active{{end}}"
-            hx-get="/agents/{{$.AgentID}}/tabs/logs?environment={{.Name}}"
-            hx-target="#tab-panel"
-            hx-swap="innerHTML"
-            data-environment="{{.Name}}"
-            data-env-button="true"
-          >{{.Name}}</button>
-        </li>
-      {{else}}
-        <li class="muted">No envs discovered</li>
-      {{end}}
-    </ul>
-    <section class="metrics">
-      <h3>Consumption</h3>
+    <div class="agent-identity">
+      <h2>{{.AgentName}}</h2>
+      <p>{{.AgentID}}</p>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Environments</div>
+      <ul>
+        {{range .Agent.Heartbeat.Environments}}
+          <li>
+            <button
+              class="env-button {{if eq $.SelectedEnvironment .Name}}active{{end}}"
+              hx-get="/agents/{{$.AgentID}}/tabs/logs?environment={{.Name}}"
+              hx-target="#tab-panel"
+              hx-swap="innerHTML"
+              data-environment="{{.Name}}"
+              data-env-button="true"
+            >{{.Name}}</button>
+          </li>
+        {{else}}
+          <li class="muted" style="font-size:13px;padding:4px">No envs discovered</li>
+        {{end}}
+      </ul>
+    </div>
+
+    <div class="sidebar-section metrics">
+      <div class="sidebar-section-title">Consumption</div>
       <dl>
         <div><dt>Started</dt><dd>{{.Agent.Heartbeat.Consumption.CommandsStarted}}</dd></div>
         <div><dt>Succeeded</dt><dd>{{.Agent.Heartbeat.Consumption.CommandsSucceeded}}</dd></div>
         <div><dt>Failed</dt><dd>{{.Agent.Heartbeat.Consumption.CommandsFailed}}</dd></div>
         <div><dt>Uploaded</dt><dd>{{.Agent.Heartbeat.Consumption.BytesUploaded}}</dd></div>
       </dl>
-    </section>
+    </div>
   </aside>
 
   <section class="agent-main">
     <header class="agent-top">
-      <h1>{{.AgentName}}</h1>
       <nav class="tabs" aria-label="Agent sections">
         <button class="tab active" data-tab-link="events" hx-get="/agents/{{.AgentID}}/tabs/events" hx-target="#tab-panel" hx-swap="innerHTML">Queue Events</button>
         <button id="logs-tab-button" class="tab" data-tab-link="logs" hx-get="/agents/{{.AgentID}}/tabs/logs{{if .SelectedEnvironment}}?environment={{.SelectedEnvironment}}{{end}}" hx-target="#tab-panel" hx-swap="innerHTML">Env Logs</button>
@@ -42,7 +47,7 @@
       </nav>
     </header>
 
-    <div id="tab-panel" class="panel" hx-get="/agents/{{.AgentID}}/tabs/events" hx-trigger="load" hx-swap="innerHTML">
+    <div id="tab-panel" hx-get="/agents/{{.AgentID}}/tabs/events" hx-trigger="load" hx-swap="innerHTML">
       {{template "tab_events" .}}
     </div>
   </section>

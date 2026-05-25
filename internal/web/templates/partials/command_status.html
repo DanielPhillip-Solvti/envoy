@@ -4,7 +4,7 @@
 
 {{define "command_status"}}
 <div>
-  <h3>Command {{.CommandID}}</h3>
+  <p style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:8px">Command {{.CommandID}}</p>
   <div hx-get="/commands/{{.CommandID}}/events" hx-trigger="load, every 2s" hx-swap="innerHTML">
     Loading events...
   </div>
@@ -15,16 +15,12 @@
 <div class="event-list event-stream" data-autoscroll="bottom">
   {{range .}}
     <article class="event-item">
-      <div class="event-status {{.Status}}">{{.Status}}</div>
+      <span class="event-status {{.Status}}">{{.Status}}</span>
       <div class="event-message">
-        <div class="event-command">
-          {{if .Scope}}{{.Scope}}/{{end}}{{if .Name}}{{.Name}}{{else if .CommandID}}command {{.CommandID}}{{else}}unknown-command{{end}}
-          {{if .Environment}} in {{.Environment}}{{end}}
-          {{if .Args}} args:{{range .Args}} {{.}}{{end}}{{end}}
-        </div>
+        <div class="event-command">{{if .Scope}}{{.Scope}}/{{end}}{{if .Name}}{{.Name}}{{else if .CommandID}}cmd:{{.CommandID}}{{else}}unknown{{end}}{{if .Environment}} · {{.Environment}}{{end}}{{if .Args}} · {{range .Args}}{{.}} {{end}}{{end}}</div>
         <div>{{if .Stream}}[{{.Stream}}] {{end}}{{.Message}}</div>
       </div>
-      <div class="event-meta">exit {{.ExitCode}}</div>
+      <span class="event-meta">exit {{.ExitCode}}</span>
     </article>
   {{else}}
     <p class="muted">No events yet.</p>

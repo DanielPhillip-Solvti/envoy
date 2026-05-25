@@ -1,22 +1,18 @@
 {{define "tab_events"}}
 <section>
   <div class="panel-head">
-    <h2>Queue events</h2>
+    <h2>Queue Events</h2>
     <button class="ghost" hx-get="/agents/{{.AgentID}}/tabs/events" hx-target="#tab-panel" hx-swap="innerHTML">Refresh</button>
   </div>
   <div class="event-list event-stream" data-autoscroll="bottom">
     {{range .Events}}
       <article class="event-item">
-        <div class="event-status {{.Status}}">{{.Status}}</div>
+        <span class="event-status {{.Status}}">{{.Status}}</span>
         <div class="event-message">
-          <div class="event-command">
-            {{if .Scope}}{{.Scope}}/{{end}}{{if .Name}}{{.Name}}{{else if .CommandID}}command {{.CommandID}}{{else}}unknown-command{{end}}
-            {{if .Environment}} in {{.Environment}}{{end}}
-            {{if .Args}} args:{{range .Args}} {{.}}{{end}}{{end}}
-          </div>
+          <div class="event-command">{{if .Scope}}{{.Scope}}/{{end}}{{if .Name}}{{.Name}}{{else if .CommandID}}cmd:{{.CommandID}}{{else}}unknown{{end}}{{if .Environment}} · {{.Environment}}{{end}}{{if .Args}} · {{range .Args}}{{.}} {{end}}{{end}}</div>
           <div>{{if .Stream}}[{{.Stream}}] {{end}}{{.Message}}</div>
         </div>
-        <div class="event-meta">{{if .SentAt.IsZero}}pending{{else}}{{.SentAt.Format "2006-01-02 15:04:05"}}{{end}}</div>
+        <span class="event-meta">{{if .SentAt.IsZero}}pending{{else}}{{.SentAt.Format "15:04:05"}}{{end}}</span>
       </article>
     {{else}}
       <p class="muted">No queue events yet for this agent.</p>
