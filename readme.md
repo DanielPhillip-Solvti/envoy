@@ -31,16 +31,12 @@
 * jetstream for events
 * core nats for log streaming
 
-## Test Setup
-* create a container with its own docker engine
-* add some simple vm level scripts, health, disk
-* add a vm level deploy script that starts a simple service within an env folder with a name
-* add an env level script that can be run within each env folder
-* add a text file for fetching
-* configure manifest, no repo, vm scripts, env scripts, file-access to text file
-* install agent in container
-* run server locally,
-* run agent
+# Naming
+* agent: one instance of an agent usually on a VM
+* environment: one docker compose folder in a configured env folder
+* service: one running docker container
+* event: a message passed on the queue
+* logs: streamed logs from docker compose
 
 ## Local development
 * `make test` runs the Go test suite
