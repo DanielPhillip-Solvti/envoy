@@ -27,7 +27,7 @@ func PlatformFromEnv() Platform {
 
 func AgentFromEnv() Agent {
 	return Agent{
-		ManifestPath: env("ENVOY_MANIFEST", "examples/agent.manifest.yaml"),
+		ManifestPath: env("ENVOY_MANIFEST", "test/vm/agent.manifest.yaml"),
 		NATSURL:      env("ENVOY_NATS_URL", "nats://127.0.0.1:4222"),
 		NATSNKey:     os.Getenv("ENVOY_NATS_NKEY"),
 		ObjectDir:    env("ENVOY_OBJECT_DIR", "var/objects"),
