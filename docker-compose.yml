@@ -1,0 +1,29 @@
+services:
+  nats:
+    image: nats:2.10
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+
+  platform:
+    build:
+      context: .
+      dockerfile: Dockerfile.platform
+    environment:
+      ENVOY_HTTP_ADDR: ":8080"
+      ENVOY_NATS_URL: nats://nats:4222
+    ports:
+      - "8080:8080"
+    depends_on:
+      - nats
+
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    environment:
+      ENVOY_MANIFEST: examples/agent.manifest.yaml
+      ENVOY_NATS_URL: nats://nats:4222
+    depends_on:
+      - nats

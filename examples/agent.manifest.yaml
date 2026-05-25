@@ -1,0 +1,27 @@
+version: 1
+name: local-test-vm
+repo: ""
+environments: test/vm/envs
+docker:
+  compose_file: docker-compose.yaml
+  project_pattern: envoy-{environment}
+vm_scripts:
+  health:
+    path: test/vm/scripts/health.sh
+    args: []
+    timeout: 10s
+  disk:
+    path: test/vm/scripts/disk.sh
+    args: []
+    timeout: 10s
+  deploy:
+    path: test/vm/scripts/deploy.sh
+    args: ["branch"]
+    timeout: 2m
+env_scripts:
+  restart:
+    path: test/vm/scripts/restart.sh
+    args: []
+    timeout: 30s
+files:
+  sample: test/vm/files/sample.txt

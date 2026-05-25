@@ -22,9 +22,11 @@
 * listens to queue, executes commands, publishes result
 * able to browse and stream docker compose logs
 * able to send files by object store if listed in accessible files
+* no application database for operational state; platform state is reconstructed from queue events, heartbeats, and consumption metrics
 
-## Queue 
-* NATS and NKey, assymetric keys
+## Queue
+* NATS and NKey, asymmetric keys
+* single NATS server should be deployed alongside the platform
 * Only the platform and agents are allowed to publish to the queue
 * jetstream for events
 * core nats for log streaming
@@ -39,3 +41,11 @@
 * install agent in container
 * run server locally,
 * run agent
+
+## Local development
+* `make test` runs the Go test suite
+* `make build` builds the platform and agent binaries
+* `make compose-config` validates the Docker Compose file
+* `make run-nats` starts local NATS with JetStream
+* `make run-platform` starts the web platform on `:8080`
+* `make run-agent` starts the local test agent
