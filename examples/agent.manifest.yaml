@@ -27,5 +27,9 @@ env_scripts:
     path: test/vm/scripts/up.sh
     args: []
     timeout: 30s
+  down:
+    path: test/vm/scripts/down.sh
+    args: []
+    timeout: 30s
 files:
   sample: test/vm/files/sample.txt

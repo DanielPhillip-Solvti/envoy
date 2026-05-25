@@ -14,6 +14,7 @@ type State struct {
 	mu     sync.RWMutex
 	now    func() time.Time
 	agents map[string]AgentView
+	cmds   map[string]queue.CommandRequest
 	events map[string][]queue.CommandEvent
 	files  map[string]queue.FileResponse
 	logs   map[string][]queue.LogEvent
@@ -29,10 +30,17 @@ func NewMemoryState(now func() time.Time) *State {
 	return &State{
 		now:    now,
 		agents: map[string]AgentView{},
+		cmds:   map[string]queue.CommandRequest{},
 		events: map[string][]queue.CommandEvent{},
 		files:  map[string]queue.FileResponse{},
 		logs:   map[string][]queue.LogEvent{},
 	}
+}
+
+func (s *State) ApplyCommandRequest(req queue.CommandRequest) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cmds[req.CommandID] = req
 }
 
 func (s *State) ApplyRegistration(reg queue.RegisterAgent) {
@@ -92,8 +100,10 @@ func (s *State) Agent(agentID string) (AgentView, bool) {
 func (s *State) CommandEvents(commandID string) []queue.CommandEvent {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	result := make([]queue.CommandEvent, len(s.events[commandID]))
-	copy(result, s.events[commandID])
+	result := make([]queue.CommandEvent, 0, len(s.events[commandID]))
+	for _, event := range s.events[commandID] {
+		result = append(result, s.enrichCommandEvent(event))
+	}
 	return result
 }
 
@@ -104,8 +114,9 @@ func (s *State) AgentEvents(agentID string) []queue.CommandEvent {
 	result := make([]queue.CommandEvent, 0)
 	for _, events := range s.events {
 		for _, event := range events {
-			if event.AgentID == agentID {
-				result = append(result, event)
+			enriched := s.enrichCommandEvent(event)
+			if enriched.AgentID == agentID {
+				result = append(result, enriched)
 			}
 		}
 	}
@@ -117,6 +128,29 @@ func (s *State) AgentEvents(agentID string) []queue.CommandEvent {
 	return result
 }
 
+func (s *State) enrichCommandEvent(event queue.CommandEvent) queue.CommandEvent {
+	req, ok := s.cmds[event.CommandID]
+	if !ok {
+		return event
+	}
+	if event.AgentID == "" {
+		event.AgentID = req.AgentID
+	}
+	if event.Scope == "" {
+		event.Scope = req.Scope
+	}
+	if event.Name == "" {
+		event.Name = req.Name
+	}
+	if event.Environment == "" {
+		event.Environment = req.Environment
+	}
+	if len(event.Args) == 0 && len(req.Args) > 0 {
+		event.Args = append([]string{}, req.Args...)
+	}
+	return event
+}
+
 func (s *State) FileResponses() []queue.FileResponse {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -125,6 +159,13 @@ func (s *State) FileResponses() []queue.FileResponse {
 		result = append(result, response)
 	}
 	return result
+}
+
+func (s *State) FileResponse(requestID string) (queue.FileResponse, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	response, ok := s.files[requestID]
+	return response, ok
 }
 
 func (s *State) Logs(agentID, environment string) []queue.LogEvent {

@@ -4,28 +4,87 @@
     <h2>Commands</h2>
   </div>
 
-  <div class="commands-grid">
-    {{range .Agent.Registration.Scripts}}
-      <form class="command-form" hx-post="/agents/{{$.Agent.Registration.AgentID}}/commands" hx-target="#command-status" hx-swap="innerHTML">
-        <h3>{{.Scope}} / {{.Name}}</h3>
-        <input type="hidden" name="scope" value="{{.Scope}}">
-        <input type="hidden" name="name" value="{{.Name}}">
-        {{if eq .Scope "env"}}
-          <label>Environment
-            <input name="environment" value="{{$.SelectedEnvironment}}" placeholder="environment name">
-          </label>
+  <section class="commands-section">
+    <h3>VM Commands</h3>
+    <div class="commands-grid">
+      {{range $index, $script := .Agent.Registration.Scripts}}
+        {{if eq $script.Scope "vm"}}
+          <article class="command-card">
+            <div class="command-card-head">
+              <h3>{{$script.Name}}</h3>
+              <span class="command-pill">vm</span>
+            </div>
+            <button type="button" class="run-action" onclick="document.getElementById('cmd-modal-vm-{{$index}}').showModal()">Run</button>
+
+            <dialog id="cmd-modal-vm-{{$index}}" class="command-modal">
+              <form class="command-modal-form" hx-post="/agents/{{$.AgentID}}/commands" hx-target="#command-status" hx-swap="innerHTML" onsubmit="this.closest('dialog').close()">
+                <h4>vm / {{$script.Name}}</h4>
+                <input type="hidden" name="scope" value="{{$script.Scope}}">
+                <input type="hidden" name="name" value="{{$script.Name}}">
+                {{range $script.Args}}
+                  <label>{{.}}
+                    <input name="args" placeholder="{{.}}">
+                  </label>
+                {{end}}
+                <div class="modal-actions">
+                  <button type="button" class="ghost" onclick="this.closest('dialog').close()">Cancel</button>
+                  <button type="submit">Run command</button>
+                </div>
+              </form>
+            </dialog>
+          </article>
         {{end}}
-        {{range .Args}}
-          <label>{{.}}
-            <input name="args" placeholder="{{.}}">
-          </label>
+      {{end}}
+    </div>
+  </section>
+
+  <section class="commands-section">
+    <h3>Environment Commands</h3>
+    <div class="commands-grid">
+      {{range $index, $script := .Agent.Registration.Scripts}}
+        {{if eq $script.Scope "env"}}
+          <article class="command-card">
+            <div class="command-card-head">
+              <h3>{{$script.Name}}</h3>
+              <span class="command-pill">env</span>
+            </div>
+            <button type="button" class="run-action" onclick="document.getElementById('cmd-modal-env-{{$index}}').showModal()">Run</button>
+
+            <dialog id="cmd-modal-env-{{$index}}" class="command-modal">
+              <form class="command-modal-form" hx-post="/agents/{{$.AgentID}}/commands" hx-target="#command-status" hx-swap="innerHTML" onsubmit="this.closest('dialog').close()">
+                <h4>env / {{$script.Name}}</h4>
+                <input type="hidden" name="scope" value="{{$script.Scope}}">
+                <input type="hidden" name="name" value="{{$script.Name}}">
+                <label>Environment
+                  <select name="environment" required>
+                    {{if not $.SelectedEnvironment}}
+                      <option value="" selected disabled>Select environment</option>
+                    {{end}}
+                    {{range $.Agent.Heartbeat.Environments}}
+                      <option value="{{.Name}}" {{if eq $.SelectedEnvironment .Name}}selected{{end}}>{{.Name}}</option>
+                    {{end}}
+                  </select>
+                </label>
+                {{range $script.Args}}
+                  <label>{{.}}
+                    <input name="args" placeholder="{{.}}">
+                  </label>
+                {{end}}
+                <div class="modal-actions">
+                  <button type="button" class="ghost" onclick="this.closest('dialog').close()">Cancel</button>
+                  <button type="submit">Run command</button>
+                </div>
+              </form>
+            </dialog>
+          </article>
         {{end}}
-        <button type="submit">Run</button>
-      </form>
-    {{else}}
-      <p class="muted">No script capabilities were registered by this agent.</p>
-    {{end}}
-  </div>
+      {{end}}
+    </div>
+  </section>
+
+  {{if not .Agent.Registration.Scripts}}
+    <p class="muted">No script capabilities were registered by this agent.</p>
+  {{end}}
 
   <section id="command-status" class="command-status">
     {{template "command_status_empty" .}}

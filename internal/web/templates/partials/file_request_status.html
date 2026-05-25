@@ -1,0 +1,17 @@
+{{define "file_request_status"}}
+{{if .Pending}}
+<section id="file-request-status" class="request-status muted" hx-get="/file-requests/{{.RequestID}}" hx-trigger="load, every 2s" hx-swap="outerHTML">
+  Requesting file {{if .FileKey}}"{{.FileKey}}"{{else}}...{{end}}.
+</section>
+{{else if .Error}}
+<section id="file-request-status" class="request-status error">
+  File request failed: {{.Error}}
+</section>
+{{else}}
+<section id="file-request-status" class="request-status success">
+  <a class="download-link" data-auto-download="true" href="/downloads/{{.RequestID}}?name={{if .FileName}}{{.FileName | urlquery}}{{else}}{{.FileKey | urlquery}}{{end}}" download>
+    Download {{if .FileName}}{{.FileName}}{{else}}{{.FileKey}}{{end}}
+  </a>
+</section>
+{{end}}
+{{end}}

@@ -12,11 +12,18 @@
 {{end}}
 
 {{define "command_events"}}
-<div class="event-list">
+<div class="event-list event-stream" data-autoscroll="bottom">
   {{range .}}
     <article class="event-item">
       <div class="event-status {{.Status}}">{{.Status}}</div>
-      <div class="event-message">{{if .Stream}}[{{.Stream}}] {{end}}{{.Message}}</div>
+      <div class="event-message">
+        <div class="event-command">
+          {{if .Scope}}{{.Scope}}/{{end}}{{if .Name}}{{.Name}}{{else if .CommandID}}command {{.CommandID}}{{else}}unknown-command{{end}}
+          {{if .Environment}} in {{.Environment}}{{end}}
+          {{if .Args}} args:{{range .Args}} {{.}}{{end}}{{end}}
+        </div>
+        <div>{{if .Stream}}[{{.Stream}}] {{end}}{{.Message}}</div>
+      </div>
       <div class="event-meta">exit {{.ExitCode}}</div>
     </article>
   {{else}}

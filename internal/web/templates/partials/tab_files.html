@@ -2,30 +2,41 @@
 <section>
   <div class="panel-head">
     <h2>Files</h2>
-    <button class="ghost" hx-get="/agents/{{.Agent.Registration.AgentID}}/tabs/files" hx-target="#tab-panel" hx-swap="innerHTML">Refresh</button>
+    <button class="ghost" hx-get="/agents/{{.AgentID}}/tabs/files" hx-target="#tab-panel" hx-swap="innerHTML">Refresh</button>
   </div>
 
   <div class="files-grid">
     {{range .Agent.Registration.Files}}
-      <form class="file-form" hx-post="/agents/{{$.Agent.Registration.AgentID}}/files/{{.Key}}" hx-target="#tab-panel" hx-swap="innerHTML">
-        <h3>{{.Key}}</h3>
-        <button type="submit">Request file</button>
+      <form class="file-tile" hx-post="/agents/{{$.AgentID}}/files/{{.Key}}" hx-target="#file-request-status" hx-swap="outerHTML">
+        <div class="file-tile-meta">
+          <span class="file-icon" aria-hidden="true">📄</span>
+          <h3>{{.Key}}</h3>
+        </div>
+        <button type="submit" class="icon-action" title="Request and download" aria-label="Request and download">
+          ⬇
+        </button>
       </form>
     {{else}}
       <p class="muted">No file capabilities were registered by this agent.</p>
     {{end}}
   </div>
 
+  <section id="file-request-status" class="request-status muted">
+    Request a file to trigger browser download.
+  </section>
+
   <h3>File responses</h3>
-  <ul class="file-responses">
+  <ul class="file-responses compact">
     {{range .Files}}
-      <li>
-        <strong>{{.FileKey}}</strong>
+      <li class="file-response-tile">
+        <div class="file-tile-meta">
+          <span class="file-icon" aria-hidden="true">📄</span>
+          <strong>{{if .FileName}}{{.FileName}}{{else}}{{.FileKey}}{{end}}</strong>
+        </div>
         {{if .Error}}
           <span class="error">{{.Error}}</span>
         {{else}}
-          <a href="{{.ObjectURL}}">{{.ObjectURL}}</a>
-          <span class="muted">({{.Size}} bytes)</span>
+          <a class="icon-action download" href="/downloads/{{.RequestID}}?name={{if .FileName}}{{.FileName | urlquery}}{{else}}{{.FileKey | urlquery}}{{end}}" download title="Download" aria-label="Download">⬇</a>
         {{end}}
       </li>
     {{else}}

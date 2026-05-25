@@ -1,18 +1,19 @@
 {{define "agent_page"}}
 <div class="agent-layout">
   <aside class="agent-sidebar">
-    <h2>{{.Agent.Registration.Name}}</h2>
-    <p class="muted">{{.Agent.Registration.AgentID}}</p>
+    <h2>{{.AgentName}}</h2>
+    <p class="muted">{{.AgentID}}</p>
     <h3>Environments</h3>
     <ul>
       {{range .Agent.Heartbeat.Environments}}
         <li>
           <button
             class="env-button {{if eq $.SelectedEnvironment .Name}}active{{end}}"
-            hx-get="/agents/{{$.Agent.Registration.AgentID}}/tabs/logs?environment={{.Name}}"
+            hx-get="/agents/{{$.AgentID}}/tabs/logs?environment={{.Name}}"
             hx-target="#tab-panel"
             hx-swap="innerHTML"
-            data-tab-link="logs"
+            data-environment="{{.Name}}"
+            data-env-button="true"
           >{{.Name}}</button>
         </li>
       {{else}}
@@ -32,16 +33,16 @@
 
   <section class="agent-main">
     <header class="agent-top">
-      <h1>{{.Agent.Registration.Name}}</h1>
+      <h1>{{.AgentName}}</h1>
       <nav class="tabs" aria-label="Agent sections">
-        <button class="tab active" data-tab-link="events" hx-get="/agents/{{.Agent.Registration.AgentID}}/tabs/events" hx-target="#tab-panel" hx-swap="innerHTML">Queue Events</button>
-        <button class="tab" data-tab-link="logs" hx-get="/agents/{{.Agent.Registration.AgentID}}/tabs/logs{{if .SelectedEnvironment}}?environment={{.SelectedEnvironment}}{{end}}" hx-target="#tab-panel" hx-swap="innerHTML">Env Logs</button>
-        <button class="tab" data-tab-link="commands" hx-get="/agents/{{.Agent.Registration.AgentID}}/tabs/commands" hx-target="#tab-panel" hx-swap="innerHTML">Commands</button>
-        <button class="tab" data-tab-link="files" hx-get="/agents/{{.Agent.Registration.AgentID}}/tabs/files" hx-target="#tab-panel" hx-swap="innerHTML">Files</button>
+        <button class="tab active" data-tab-link="events" hx-get="/agents/{{.AgentID}}/tabs/events" hx-target="#tab-panel" hx-swap="innerHTML">Queue Events</button>
+        <button id="logs-tab-button" class="tab" data-tab-link="logs" hx-get="/agents/{{.AgentID}}/tabs/logs{{if .SelectedEnvironment}}?environment={{.SelectedEnvironment}}{{end}}" hx-target="#tab-panel" hx-swap="innerHTML">Env Logs</button>
+        <button class="tab" data-tab-link="commands" hx-get="/agents/{{.AgentID}}/tabs/commands" hx-target="#tab-panel" hx-swap="innerHTML">Commands</button>
+        <button class="tab" data-tab-link="files" hx-get="/agents/{{.AgentID}}/tabs/files" hx-target="#tab-panel" hx-swap="innerHTML">Files</button>
       </nav>
     </header>
 
-    <div id="tab-panel" class="panel" hx-get="/agents/{{.Agent.Registration.AgentID}}/tabs/events" hx-trigger="load" hx-swap="innerHTML">
+    <div id="tab-panel" class="panel" hx-get="/agents/{{.AgentID}}/tabs/events" hx-trigger="load" hx-swap="innerHTML">
       {{template "tab_events" .}}
     </div>
   </section>

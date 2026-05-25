@@ -1,4 +1,22 @@
 (() => {
+  function triggerAutoDownloads(root = document) {
+    const links = root.querySelectorAll('a[data-auto-download="true"]');
+    links.forEach((link) => {
+      if (link.dataset.downloadTriggered === "true") {
+        return;
+      }
+      link.dataset.downloadTriggered = "true";
+      link.click();
+    });
+  }
+
+  function scrollAutoContainersToBottom(root = document) {
+    const containers = root.querySelectorAll('[data-autoscroll="bottom"]');
+    containers.forEach((container) => {
+      container.scrollTop = container.scrollHeight;
+    });
+  }
+
   function setActiveTab(linkValue) {
     const links = document.querySelectorAll("[data-tab-link]");
     links.forEach((el) => {
@@ -11,6 +29,23 @@
   }
 
   document.body.addEventListener("click", (event) => {
+    const envButton = event.target.closest(".env-button[data-env-button='true']");
+    if (envButton) {
+      const selectedEnvironment = envButton.getAttribute("data-environment");
+      document.querySelectorAll(".env-button[data-env-button='true']").forEach((button) => {
+        button.classList.remove("active");
+      });
+      envButton.classList.add("active");
+
+      const logsTabButton = document.getElementById("logs-tab-button");
+      if (logsTabButton && selectedEnvironment) {
+        const basePath = logsTabButton.getAttribute("hx-get").split("?")[0];
+        logsTabButton.setAttribute("hx-get", `${basePath}?environment=${encodeURIComponent(selectedEnvironment)}`);
+      }
+      setActiveTab("logs");
+      return;
+    }
+
     const button = event.target.closest("[data-tab-link]");
     if (!button) {
       return;
@@ -19,6 +54,8 @@
   });
 
   document.body.addEventListener("htmx:afterSwap", (event) => {
+    requestAnimationFrame(() => triggerAutoDownloads(event.target || document));
+    requestAnimationFrame(() => scrollAutoContainersToBottom(event.target || document));
     if (event.target && event.target.id === "tab-panel") {
       const active = document.querySelector("[data-tab-link].active");
       if (!active) {
@@ -26,4 +63,14 @@
       }
     }
   });
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => {
+      scrollAutoContainersToBottom();
+      triggerAutoDownloads();
+    });
+  } else {
+    scrollAutoContainersToBottom();
+    triggerAutoDownloads();
+  }
 })();

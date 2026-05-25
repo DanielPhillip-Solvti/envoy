@@ -56,6 +56,14 @@ func (r *Runner) Run(ctx context.Context) error {
 	}); err != nil {
 		return err
 	}
+	if _, err := r.bus.SubscribeJSON(queue.SubjectCapabilityRequest(r.manifest.AgentID()), func(data []byte) {
+		var req queue.CapabilityRequest
+		if json.Unmarshal(data, &req) == nil {
+			go r.handleCapabilityRequest(req)
+		}
+	}); err != nil {
+		return err
+	}
 
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
@@ -156,13 +164,17 @@ func (r *Runner) scan(req queue.CommandRequest, stream string, pipe interface{ R
 
 func (r *Runner) emit(req queue.CommandRequest, status, stream, message string, exitCode int) {
 	_ = r.bus.PublishJSON(queue.SubjectCommandEvent(req.CommandID), queue.CommandEvent{
-		CommandID: req.CommandID,
-		AgentID:   req.AgentID,
-		Status:    status,
-		Stream:    stream,
-		Message:   message,
-		ExitCode:  exitCode,
-		SentAt:    time.Now().UTC(),
+		CommandID:   req.CommandID,
+		AgentID:     req.AgentID,
+		Scope:       req.Scope,
+		Name:        req.Name,
+		Environment: req.Environment,
+		Args:        append([]string{}, req.Args...),
+		Status:      status,
+		Stream:      stream,
+		Message:     message,
+		ExitCode:    exitCode,
+		SentAt:      time.Now().UTC(),
 	})
 }
 
@@ -184,57 +196,143 @@ func (r *Runner) discoverEnvironments() []queue.EnvironmentStatus {
 	if err != nil {
 		return nil
 	}
+	composeFile := r.manifest.Docker.ComposeFile
+	if composeFile == "" {
+		composeFile = "docker-compose.yaml"
+	}
 	var envs []queue.EnvironmentStatus
 	for _, entry := range entries {
 		if entry.IsDir() {
+			envName := entry.Name()
+			envDir := r.manifest.Resolve(filepath.Join(r.manifest.Environments, envName))
 			envs = append(envs, queue.EnvironmentStatus{
-				Name:     entry.Name(),
-				Services: map[string]string{"docker-compose": "unknown"},
+				Name:     envName,
+				Services: r.discoverComposeServices(envDir, composeFile),
 			})
 		}
 	}
 	return envs
 }
 
+func (r *Runner) discoverComposeServices(envDir, composeFile string) map[string]string {
+	args := []string{"compose", "-f", composeFile, "ps", "--format", "json"}
+	cmd := exec.Command("docker", args...)
+	cmd.Dir = envDir
+	output, err := cmd.Output()
+	if err != nil {
+		return map[string]string{"docker-compose": "unavailable"}
+	}
+
+	services := parseComposePSOutput(output)
+	if len(services) == 0 {
+		return map[string]string{"docker-compose": "empty"}
+	}
+	return services
+}
+
+type composePSRow struct {
+	Name   string `json:"Name"`
+	Service string `json:"Service"`
+	State  string `json:"State"`
+	Status string `json:"Status"`
+}
+
+func parseComposePSOutput(output []byte) map[string]string {
+	result := make(map[string]string)
+
+	var rows []composePSRow
+	if err := json.Unmarshal(output, &rows); err == nil {
+		for _, row := range rows {
+			name := strings.TrimSpace(row.Name)
+			if name == "" {
+				name = strings.TrimSpace(row.Service)
+			}
+			if name == "" {
+				continue
+			}
+			status := strings.TrimSpace(row.Status)
+			if status == "" {
+				status = strings.TrimSpace(row.State)
+			}
+			if status == "" {
+				status = "unknown"
+			}
+			result[name] = status
+		}
+		return result
+	}
+
+	// Some docker versions emit one JSON object per line.
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var row composePSRow
+		if err := json.Unmarshal([]byte(line), &row); err != nil {
+			continue
+		}
+		name := strings.TrimSpace(row.Name)
+		if name == "" {
+			name = strings.TrimSpace(row.Service)
+		}
+		if name == "" {
+			continue
+		}
+		status := strings.TrimSpace(row.Status)
+		if status == "" {
+			status = strings.TrimSpace(row.State)
+		}
+		if status == "" {
+			status = "unknown"
+		}
+		result[name] = status
+	}
+
+	return result
+}
+
 func (r *Runner) handleFileRequest(req queue.FileRequest) {
 	path, ok := r.manifest.Files[req.FileKey]
 	if !ok {
-		r.publishFileResponse(req, "", 0, "file is not allowed by manifest")
+		r.publishFileResponse(req, "", "", 0, "file is not allowed by manifest")
 		return
 	}
+	fileName := filepath.Base(path)
 
 	source := r.manifest.Resolve(path)
 	input, err := os.Open(source)
 	if err != nil {
-		r.publishFileResponse(req, "", 0, err.Error())
+		r.publishFileResponse(req, "", fileName, 0, err.Error())
 		return
 	}
 	defer input.Close()
 
 	if err := os.MkdirAll(r.objectDir, 0o755); err != nil {
-		r.publishFileResponse(req, "", 0, err.Error())
+		r.publishFileResponse(req, "", fileName, 0, err.Error())
 		return
 	}
 	objectName := fmt.Sprintf("%s-%s", req.RequestID, filepath.Base(source))
 	destination := filepath.Join(r.objectDir, objectName)
 	output, err := os.Create(destination)
 	if err != nil {
-		r.publishFileResponse(req, "", 0, err.Error())
+		r.publishFileResponse(req, "", fileName, 0, err.Error())
 		return
 	}
 	size, copyErr := io.Copy(output, input)
 	closeErr := output.Close()
 	if copyErr != nil {
-		r.publishFileResponse(req, "", 0, copyErr.Error())
+		r.publishFileResponse(req, "", fileName, 0, copyErr.Error())
 		return
 	}
 	if closeErr != nil {
-		r.publishFileResponse(req, "", 0, closeErr.Error())
+		r.publishFileResponse(req, "", fileName, 0, closeErr.Error())
 		return
 	}
 
 	atomic.AddUint64(&r.metrics.BytesUploaded, uint64(size))
-	r.publishFileResponse(req, "file://"+destination, size, "")
+	r.publishFileResponse(req, "file://"+destination, fileName, size, "")
 }
 
 func (r *Runner) handleLogRequest(ctx context.Context, req queue.LogRequest) {
@@ -247,6 +345,9 @@ func (r *Runner) handleLogRequest(ctx context.Context, req queue.LogRequest) {
 		composeFile = "docker-compose.yaml"
 	}
 	args := []string{"compose", "-f", composeFile, "logs", "--tail", fmt.Sprintf("%d", req.Tail)}
+	if strings.TrimSpace(req.Service) != "" {
+		args = append(args, req.Service)
+	}
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	cmd.Dir = envDir
 	output, err := cmd.CombinedOutput()
@@ -270,16 +371,21 @@ func (r *Runner) publishLogLine(req queue.LogRequest, line string) {
 	})
 }
 
-func (r *Runner) publishFileResponse(req queue.FileRequest, objectURL string, size int64, message string) {
+func (r *Runner) publishFileResponse(req queue.FileRequest, objectURL, fileName string, size int64, message string) {
 	_ = r.bus.PublishJSON(queue.SubjectFileResponse(req.RequestID), queue.FileResponse{
 		RequestID: req.RequestID,
 		AgentID:   req.AgentID,
 		FileKey:   req.FileKey,
+		FileName:  fileName,
 		ObjectURL: objectURL,
 		Size:      size,
 		Error:     message,
 		SentAt:    time.Now().UTC(),
 	})
+}
+
+func (r *Runner) handleCapabilityRequest(_ queue.CapabilityRequest) {
+	_ = r.register()
 }
 
 func (r *Runner) consumption() queue.ConsumptionMetrics {

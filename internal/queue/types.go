@@ -34,6 +34,10 @@ func SubjectFileResponse(requestID string) string {
 	return fmt.Sprintf("envoy.file.response.%s", requestID)
 }
 
+func SubjectCapabilityRequest(agentID string) string {
+	return fmt.Sprintf("envoy.capability.request.%s", agentID)
+}
+
 type ScriptCapability struct {
 	Name    string   `json:"name"`
 	Scope   string   `json:"scope"`
@@ -88,6 +92,10 @@ type CommandRequest struct {
 type CommandEvent struct {
 	CommandID string    `json:"command_id"`
 	AgentID   string    `json:"agent_id"`
+	Scope     string    `json:"scope,omitempty"`
+	Name      string    `json:"name,omitempty"`
+	Environment string  `json:"environment,omitempty"`
+	Args      []string  `json:"args,omitempty"`
 	Status    string    `json:"status"`
 	Stream    string    `json:"stream,omitempty"`
 	Message   string    `json:"message,omitempty"`
@@ -106,6 +114,7 @@ type LogRequest struct {
 	RequestID   string    `json:"request_id"`
 	AgentID     string    `json:"agent_id"`
 	Environment string    `json:"environment"`
+	Service     string    `json:"service,omitempty"`
 	Tail        int       `json:"tail"`
 	AskedAt     time.Time `json:"asked_at"`
 }
@@ -121,8 +130,14 @@ type FileResponse struct {
 	RequestID string    `json:"request_id"`
 	AgentID   string    `json:"agent_id"`
 	FileKey   string    `json:"file_key"`
+	FileName  string    `json:"file_name,omitempty"`
 	ObjectURL string    `json:"object_url"`
 	Size      int64     `json:"size"`
 	Error     string    `json:"error,omitempty"`
 	SentAt    time.Time `json:"sent_at"`
+}
+
+type CapabilityRequest struct {
+	AgentID     string    `json:"agent_id"`
+	RequestedAt time.Time `json:"requested_at"`
 }
