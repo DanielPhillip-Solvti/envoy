@@ -52,6 +52,11 @@ type agentPageData struct {
 	Files               []queue.FileResponse
 	Logs                []queue.LogEvent
 	CanViewCommits      bool
+	CanCheckoutCommit   bool
+	CurrentBranch       string
+	CurrentCommit       string
+	CurrentCommitShort  string
+	CurrentDetached     bool
 	Commits             []commitView
 	CommitHistoryError  string
 }
@@ -63,6 +68,7 @@ type commitView struct {
 	Author    string
 	PushedAt  time.Time
 	CommitURL string
+	CheckedOut bool
 }
 
 //go:embed templates/*.html templates/partials/*.html
@@ -530,6 +536,7 @@ func (s *Server) agentData(ctx context.Context, session authSession, agentID, se
 		AgentName:           agentName,
 		Agent:               agent,
 		AgentActivated:      activated,
+		CanCheckoutCommit:   hasScriptCapability(agent, "env", "checkout_commit"),
 		OrderedEnvironments: orderedEnvironments,
 		SelectedEnvironment: selectedEnvironment,
 		SelectedService:     selectedService,
@@ -539,11 +546,24 @@ func (s *Server) agentData(ctx context.Context, session authSession, agentID, se
 		Logs:                filterLogsByService(s.state.Logs(agentID, selectedEnvironment), selectedService),
 	}
 
+	for _, env := range orderedEnvironments {
+		if env.Name == selectedEnvironment {
+			data.CurrentBranch = strings.TrimSpace(env.Branch)
+			data.CurrentCommit = strings.TrimSpace(env.Commit)
+			data.CurrentCommitShort = shortSHA(env.Commit)
+			data.CurrentDetached = env.Detached
+			break
+		}
+	}
+
 	repo := strings.TrimSpace(agent.Registration.Repo)
 	if repo != "" && selectedEnvironment != "" {
 		commits, err := s.gh.commitHistory(ctx, session.AccessToken, repo, selectedEnvironment, 25)
 		if err == nil {
 			if len(commits) > 0 {
+				for i := range commits {
+					commits[i].CheckedOut = data.CurrentCommit != "" && strings.EqualFold(strings.TrimSpace(commits[i].SHA), data.CurrentCommit)
+				}
 				data.CanViewCommits = true
 				data.Commits = commits
 			}
@@ -553,6 +573,23 @@ func (s *Server) agentData(ctx context.Context, session authSession, agentID, se
 	}
 
 	return data, true
+}
+
+func hasScriptCapability(agent platform.AgentView, scope, name string) bool {
+	for _, script := range agent.Registration.Scripts {
+		if script.Scope == scope && script.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func shortSHA(value string) string {
+	sha := strings.TrimSpace(value)
+	if len(sha) <= 8 {
+		return sha
+	}
+	return sha[:8]
 }
 
 func (s *Server) renderLayout(w http.ResponseWriter, status int, title, body string, data any, user *authUser) {

@@ -531,7 +531,7 @@ button.ghost:hover {
 
 .commit-item {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr auto auto;
   align-items: baseline;
   gap: 10px;
   padding: 7px 12px;
@@ -565,6 +565,45 @@ button.ghost:hover {
   font-size: 11px;
   color: var(--text-subtle);
   white-space: nowrap;
+}
+
+.commit-actions {
+  justify-self: end;
+}
+
+.commit-current {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--success);
+  background: var(--success-light);
+  border: 1px solid #b7e6c7;
+}
+
+.checkout-status {
+  display: flex;
+  align-items: center;
+}
+
+.checkout-pill {
+  font-size: 12px;
+  color: var(--accent);
+  background: var(--accent-light);
+  border: 1px solid var(--accent-muted);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.checkout-pill.detached {
+  color: #7a4f00;
+  background: #fff7e6;
+  border-color: #f0d7a8;
+}
+
+.checkout-pill.unknown {
+  color: var(--text-muted);
+  background: var(--surface);
+  border-color: var(--border);
 }
 
 .commit-item:hover .commit-sha { color: var(--accent-hover); }

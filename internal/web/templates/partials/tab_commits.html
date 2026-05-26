@@ -5,6 +5,16 @@
     <button class="ghost" hx-get="/agents/{{.AgentID}}/tabs/commits{{if .SelectedEnvironment}}?environment={{.SelectedEnvironment}}{{end}}" hx-target="#tab-panel" hx-swap="innerHTML">Refresh</button>
   </div>
 
+  {{if .SelectedEnvironment}}
+    <div class="checkout-status">
+      {{if .CurrentCommit}}
+        <span class="checkout-pill {{if .CurrentDetached}}detached{{end}}">Checked out {{.CurrentCommitShort}}{{if .CurrentBranch}} on {{.CurrentBranch}}{{else}} (detached){{end}}</span>
+      {{else}}
+        <span class="checkout-pill unknown">No git checkout metadata available for this environment.</span>
+      {{end}}
+    </div>
+  {{end}}
+
   {{if .CommitHistoryError}}
     <p class="muted">{{.CommitHistoryError}}</p>
   {{else if .Commits}}
@@ -16,9 +26,27 @@
             <span class="commit-message">{{.Message}}</span>
           </a>
           <span class="commit-meta">{{if .Author}}{{.Author}}{{else}}unknown{{end}} · {{.PushedAt.Format "2006-01-02 15:04"}}</span>
+          <div class="commit-actions">
+            {{if .CheckedOut}}
+              <span class="commit-current">current</span>
+            {{else if and $.AgentActivated $.CanCheckoutCommit $.SelectedEnvironment}}
+              <form hx-post="/agents/{{$.AgentID}}/commands" hx-target="#commit-command-status" hx-swap="innerHTML">
+                <input type="hidden" name="scope" value="env">
+                <input type="hidden" name="name" value="checkout_commit">
+                <input type="hidden" name="environment" value="{{$.SelectedEnvironment}}">
+                <input type="hidden" name="args" value="{{.SHA}}">
+                <button type="submit" class="ghost">Checkout</button>
+              </form>
+            {{else if and (not $.CanCheckoutCommit) $.SelectedEnvironment}}
+              <span class="muted">checkout unsupported</span>
+            {{end}}
+          </div>
         </li>
       {{end}}
     </ul>
+    <section id="commit-command-status" class="command-status">
+      {{template "command_status_empty" .}}
+    </section>
   {{else}}
     <p class="muted">No commits available for this environment branch yet.</p>
   {{end}}

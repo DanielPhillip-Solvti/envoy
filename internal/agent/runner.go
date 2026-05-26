@@ -153,6 +153,8 @@ func (r *Runner) handleCommand(ctx context.Context, req queue.CommandRequest) {
 	}
 	atomic.AddUint64(&r.metrics.CommandsSucceeded, 1)
 	r.emit(req, "succeeded", "", "command succeeded", 0)
+	// Refresh environment status immediately so UI reflects state-changing commands quickly.
+	_ = r.heartbeat()
 }
 
 func (r *Runner) scan(req queue.CommandRequest, stream string, pipe interface{ Read([]byte) (int, error) }) {
@@ -205,13 +207,41 @@ func (r *Runner) discoverEnvironments() []queue.EnvironmentStatus {
 		if entry.IsDir() {
 			envName := entry.Name()
 			envDir := r.manifest.Resolve(filepath.Join(r.manifest.Environments, envName))
+			branch, commit, detached := discoverGitHead(envDir)
 			envs = append(envs, queue.EnvironmentStatus{
 				Name:     envName,
+				Branch:   branch,
+				Commit:   commit,
+				Detached: detached,
 				Services: r.discoverComposeServices(envDir, composeFile),
 			})
 		}
 	}
 	return envs
+}
+
+func discoverGitHead(envDir string) (branch, commit string, detached bool) {
+	branchCmd := exec.Command("git", "branch", "--show-current")
+	branchCmd.Dir = envDir
+	branchOut, branchErr := branchCmd.Output()
+	if branchErr == nil {
+		branch = strings.TrimSpace(string(branchOut))
+	}
+
+	commitCmd := exec.Command("git", "rev-parse", "HEAD")
+	commitCmd.Dir = envDir
+	commitOut, commitErr := commitCmd.Output()
+	if commitErr == nil {
+		commit = strings.TrimSpace(string(commitOut))
+	}
+
+	if commit == "" {
+		return "", "", false
+	}
+	if branch == "" {
+		return "", commit, true
+	}
+	return branch, commit, false
 }
 
 func (r *Runner) discoverComposeServices(envDir, composeFile string) map[string]string {

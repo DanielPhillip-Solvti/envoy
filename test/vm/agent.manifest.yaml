@@ -19,6 +19,10 @@ vm_scripts:
     args: ["branch"]
     timeout: 2m
 env_scripts:
+  checkout_commit:
+    path: test/vm/scripts/checkout_commit.sh
+    args: ["commit"]
+    timeout: 45s
   restart:
     path: test/vm/scripts/restart.sh
     args: []

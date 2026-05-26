@@ -51,6 +51,9 @@ type FileCapability struct {
 
 type EnvironmentStatus struct {
 	Name     string            `json:"name"`
+	Branch   string            `json:"branch,omitempty"`
+	Commit   string            `json:"commit,omitempty"`
+	Detached bool              `json:"detached,omitempty"`
 	Services map[string]string `json:"services"`
 }
 
