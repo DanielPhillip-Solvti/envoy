@@ -27,7 +27,11 @@
                 <input type="hidden" name="name" value="{{$script.Name}}">
                 {{range $script.Args}}
                   <label>{{.}}
-                    <input name="args" placeholder="{{.}}">
+                    <input
+                      name="args"
+                      placeholder="{{.}}"
+                      value="{{if eq . "repo"}}{{$.Agent.Registration.Repo}}{{else if eq . "branch"}}{{$.SelectedEnvironment}}{{end}}"
+                    >
                   </label>
                 {{end}}
                 <div class="modal-actions">
@@ -71,7 +75,11 @@
                 </label>
                 {{range $script.Args}}
                   <label>{{.}}
-                    <input name="args" placeholder="{{.}}">
+                    <input
+                      name="args"
+                      placeholder="{{.}}"
+                      value="{{if eq . "repo"}}{{$.Agent.Registration.Repo}}{{else if eq . "branch"}}{{$.SelectedEnvironment}}{{end}}"
+                    >
                   </label>
                 {{end}}
                 <div class="modal-actions">
@@ -90,7 +98,7 @@
     <p class="muted">No script capabilities were registered by this agent.</p>
   {{end}}
 
-  <section id="command-status" class="command-status">
+  <section id="command-status" class="command-status-host">
     {{template "command_status_empty" .}}
   </section>
 </section>

@@ -1,29 +1,26 @@
 {{define "command_status_empty"}}
-<p class="muted">Run a command to stream events here.</p>
+<div hidden></div>
 {{end}}
 
 {{define "command_status"}}
-<div>
-  <p style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:8px">Command {{.CommandID}}</p>
-  <div hx-get="/commands/{{.CommandID}}/events" hx-trigger="load, every 2s" hx-swap="innerHTML">
-    Loading events...
-  </div>
+<div hidden>
+  <div hx-get="/commands/{{.CommandID}}/events" hx-trigger="load, every 2s" hx-swap="innerHTML"></div>
 </div>
 {{end}}
 
 {{define "command_events"}}
-<div class="event-list event-stream" data-autoscroll="bottom">
+<div hidden>
   {{range .Events}}
-    <article class="event-item">
-      <span class="event-status {{.Status}}">{{.Status}}</span>
-      <div class="event-message">
-        <div class="event-command">{{if .Scope}}{{.Scope}}/{{end}}{{if .Name}}{{.Name}}{{else if .CommandID}}cmd:{{.CommandID}}{{else}}unknown{{end}}{{if .Environment}} · {{.Environment}}{{end}}{{if .Args}} · {{range .Args}}{{.}} {{end}}{{end}}</div>
-        <div>{{if .Stream}}[{{.Stream}}] {{end}}{{.Message}}</div>
-      </div>
-      <span class="event-meta">exit {{.ExitCode}}</span>
-    </article>
-  {{else}}
-    <p class="muted">No events yet.</p>
+    {{if or (eq .Status "started") (eq .Status "succeeded") (eq .Status "failed")}}
+      <span
+        data-command-toast="true"
+        data-toast-key="{{.CommandID}}:{{.Status}}:{{.SentAt.UnixNano}}"
+        data-toast-status="{{.Status}}"
+        data-toast-title="{{if .Scope}}{{.Scope}}/{{end}}{{if .Name}}{{.Name}}{{else if .CommandID}}cmd:{{.CommandID}}{{else}}unknown{{end}}"
+        data-toast-message="{{if .Stream}}[{{.Stream}}] {{end}}{{.Message}}"
+        data-toast-meta="{{if .Environment}}{{.Environment}} · {{end}}{{if .SentAt.IsZero}}pending{{else}}{{.SentAt.Format "15:04:05"}}{{end}}"
+      ></span>
+    {{end}}
   {{end}}
 </div>
 {{if .RefreshCommitsURL}}
