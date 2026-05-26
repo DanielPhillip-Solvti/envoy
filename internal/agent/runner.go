@@ -243,9 +243,9 @@ func parseComposePSOutput(output []byte) map[string]string {
 	var rows []composePSRow
 	if err := json.Unmarshal(output, &rows); err == nil {
 		for _, row := range rows {
-			name := strings.TrimSpace(row.Name)
+			name := strings.TrimSpace(row.Service)
 			if name == "" {
-				name = strings.TrimSpace(row.Service)
+				name = strings.TrimSpace(row.Name)
 			}
 			if name == "" {
 				continue
@@ -273,9 +273,9 @@ func parseComposePSOutput(output []byte) map[string]string {
 		if err := json.Unmarshal([]byte(line), &row); err != nil {
 			continue
 		}
-		name := strings.TrimSpace(row.Name)
+		name := strings.TrimSpace(row.Service)
 		if name == "" {
-			name = strings.TrimSpace(row.Service)
+			name = strings.TrimSpace(row.Name)
 		}
 		if name == "" {
 			continue
@@ -345,21 +345,86 @@ func (r *Runner) handleLogRequest(ctx context.Context, req queue.LogRequest) {
 		composeFile = "docker-compose.yaml"
 	}
 	args := []string{"compose", "-f", composeFile, "logs", "--tail", fmt.Sprintf("%d", req.Tail)}
-	if strings.TrimSpace(req.Service) != "" {
-		args = append(args, req.Service)
+	selectedService := strings.TrimSpace(req.Service)
+	if selectedService != "" {
+		selectedService = r.resolveComposeServiceName(envDir, composeFile, selectedService)
+		args = append(args, selectedService)
 	}
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	cmd.Dir = envDir
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		if selectedService != "" {
+			fallbackArgs := []string{"compose", "-f", composeFile, "logs", "--tail", fmt.Sprintf("%d", req.Tail)}
+			fallbackCmd := exec.CommandContext(ctx, "docker", fallbackArgs...)
+			fallbackCmd.Dir = envDir
+			fallbackOutput, fallbackErr := fallbackCmd.CombinedOutput()
+			if fallbackErr == nil {
+				r.publishLogLine(req, fmt.Sprintf("docker compose logs for service %q unavailable; showing all services", selectedService))
+				r.streamLogOutput(req, string(fallbackOutput))
+				return
+			}
+		}
 		r.publishLogLine(req, fmt.Sprintf("docker compose logs unavailable: %v", err))
 		return
 	}
-	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	r.streamLogOutput(req, string(output))
+}
+
+func (r *Runner) streamLogOutput(req queue.LogRequest, output string) {
+	scanner := bufio.NewScanner(strings.NewReader(output))
 	for scanner.Scan() {
 		atomic.AddUint64(&r.metrics.LogLinesStreamed, 1)
 		r.publishLogLine(req, scanner.Text())
 	}
+}
+
+func (r *Runner) resolveComposeServiceName(envDir, composeFile, target string) string {
+	args := []string{"compose", "-f", composeFile, "ps", "--format", "json"}
+	cmd := exec.Command("docker", args...)
+	cmd.Dir = envDir
+	output, err := cmd.Output()
+	if err != nil {
+		return target
+	}
+
+	trimmedTarget := strings.TrimSpace(target)
+	if trimmedTarget == "" {
+		return target
+	}
+
+	var rows []composePSRow
+	if err := json.Unmarshal(output, &rows); err == nil {
+		for _, row := range rows {
+			if strings.TrimSpace(row.Name) == trimmedTarget {
+				service := strings.TrimSpace(row.Service)
+				if service != "" {
+					return service
+				}
+			}
+		}
+		return target
+	}
+
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var row composePSRow
+		if err := json.Unmarshal([]byte(line), &row); err != nil {
+			continue
+		}
+		if strings.TrimSpace(row.Name) == trimmedTarget {
+			service := strings.TrimSpace(row.Service)
+			if service != "" {
+				return service
+			}
+		}
+	}
+
+	return target
 }
 
 func (r *Runner) publishLogLine(req queue.LogRequest, line string) {
