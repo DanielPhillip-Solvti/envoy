@@ -13,7 +13,7 @@ if ! command -v git >/dev/null 2>&1; then
 fi
 
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  echo "current environment is not a git repository" >&2
+  echo "current environment is not a git repository; run ensure_repo first" >&2
   exit 1
 fi
 

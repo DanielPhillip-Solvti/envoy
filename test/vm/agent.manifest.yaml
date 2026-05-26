@@ -19,6 +19,10 @@ vm_scripts:
     args: ["branch"]
     timeout: 2m
 env_scripts:
+  ensure_repo:
+    path: test/vm/scripts/ensure_repo.sh
+    args: ["repo", "branch"]
+    timeout: 2m
   checkout_commit:
     path: test/vm/scripts/checkout_commit.sh
     args: ["commit"]

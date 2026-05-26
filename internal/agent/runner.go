@@ -132,8 +132,13 @@ func (r *Runner) handleCommand(ctx context.Context, req queue.CommandRequest) {
 
 	args := append([]string{}, req.Args...)
 	cmd := exec.CommandContext(ctx, scriptPath, args...)
+	cmd.Env = append(os.Environ(),
+		"STACCATO_AGENT_ID="+r.manifest.AgentID(),
+		"STACCATO_REPO="+strings.TrimSpace(r.manifest.Repo),
+	)
 	if req.Scope == "env" && req.Environment != "" {
 		cmd.Dir = r.manifest.Resolve(filepath.Join(r.manifest.Environments, req.Environment))
+		cmd.Env = append(cmd.Env, "STACCATO_ENVIRONMENT="+req.Environment)
 	}
 
 	stdout, _ := cmd.StdoutPipe()
