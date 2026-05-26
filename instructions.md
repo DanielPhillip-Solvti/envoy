@@ -14,18 +14,18 @@ Yes, this repo now includes [example.env](example.env) as a template.
 Local/dev setup:
 1. Copy template: cp example.env .env
 2. Fill real values for OAuth fields:
-	- ENVOY_GITHUB_CLIENT_ID
-	- ENVOY_GITHUB_CLIENT_SECRET
-	- ENVOY_GITHUB_CALLBACK_URL
+	- STACCATO_GITHUB_CLIENT_ID
+	- STACCATO_GITHUB_CLIENT_SECRET
+	- STACCATO_GITHUB_CALLBACK_URL
 	- If you need to create/configure a GitHub token, use: https://github.com/settings/personal-access-tokens
-3. Keep ENVOY_SESSION_SECURE=false for local HTTP.
+3. Keep STACCATO_SESSION_SECURE=false for local HTTP.
 4. Start platform with those env vars loaded (for compose, make sure .env is present).
 
 Do not commit real credentials.
 
 ## VM Agent Install Recommendation
 
-Preferred approach: install only the agent binary on the VM, not the full envoy repo.
+Preferred approach: install only the agent binary on the VM, not the full staccato repo.
 
 Why this is preferred:
 - Smaller footprint and faster updates.
@@ -33,8 +33,8 @@ Why this is preferred:
 - Easier rollback by swapping one binary.
 
 What the VM needs:
-- envoy-agent binary.
-- A manifest file (for example /etc/envoy/agent.manifest.yaml).
+- staccato-agent binary.
+- A manifest file (for example /etc/staccato/agent.manifest.yaml).
 - Any scripts and files referenced by that manifest.
 - Docker + docker compose plugin (if environments use compose).
 - Network reachability to NATS.
@@ -46,22 +46,22 @@ When to pull a repo on the VM:
 ### Binary-only install flow (recommended)
 
 1. Build the agent binary:
-	CGO_ENABLED=0 go build -o envoy-agent ./cmd/agent
+	CGO_ENABLED=0 go build -o staccato-agent ./cmd/agent
 
 2. Copy binary to VM:
-	scp envoy-agent user@vm:/tmp/envoy-agent
+	scp staccato-agent user@vm:/tmp/staccato-agent
 
 3. Install binary and runtime dirs on VM:
-	sudo install -m 0755 /tmp/envoy-agent /usr/local/bin/envoy-agent
-	sudo mkdir -p /etc/envoy /var/lib/envoy
+	sudo install -m 0755 /tmp/staccato-agent /usr/local/bin/staccato-agent
+	sudo mkdir -p /etc/staccato /var/lib/staccato
 
 4. Place manifest and referenced scripts/files on VM:
-	- Set ENVOY_MANIFEST to this manifest path.
+	- Set STACCATO_MANIFEST to this manifest path.
 	- Ensure all manifest paths exist on disk.
 
 5. Set env vars and run as service:
-	- Required: ENVOY_NATS_URL
-	- Usually set: ENVOY_MANIFEST, optional ENVOY_OBJECT_DIR
+	- Required: STACCATO_NATS_URL
+	- Usually set: STACCATO_MANIFEST, optional STACCATO_OBJECT_DIR
 
 6. Validate startup:
 	- agent process is running

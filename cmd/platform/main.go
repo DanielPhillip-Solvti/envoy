@@ -9,10 +9,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/example/envoy/internal/config"
-	"github.com/example/envoy/internal/platform"
-	"github.com/example/envoy/internal/queue"
-	"github.com/example/envoy/internal/web"
+	"github.com/example/staccato/internal/config"
+	"github.com/example/staccato/internal/platform"
+	"github.com/example/staccato/internal/queue"
+	"github.com/example/staccato/internal/web"
 )
 
 func main() {

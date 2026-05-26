@@ -15,12 +15,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/example/envoy/internal/platform"
+	"github.com/example/staccato/internal/platform"
 )
 
 const (
-	sessionCookieName    = "envoy_session"
-	oauthStateCookieName = "envoy_oauth_state"
+	sessionCookieName    = "staccato_session"
+	oauthStateCookieName = "staccato_oauth_state"
 )
 
 type authUser struct {

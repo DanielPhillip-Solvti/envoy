@@ -7,10 +7,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/example/envoy/internal/agent"
-	"github.com/example/envoy/internal/config"
-	"github.com/example/envoy/internal/manifest"
-	"github.com/example/envoy/internal/queue"
+	"github.com/example/staccato/internal/agent"
+	"github.com/example/staccato/internal/config"
+	"github.com/example/staccato/internal/manifest"
+	"github.com/example/staccato/internal/queue"
 )
 
 func main() {

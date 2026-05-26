@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/example/envoy/internal/queue"
+	"github.com/example/staccato/internal/queue"
 )
 
 type State struct {
@@ -194,7 +194,7 @@ func Subscribe(_ context.Context, bus *queue.Bus, state *State) error {
 	}); err != nil {
 		return err
 	}
-	if _, err := bus.SubscribeJSON("envoy.command.event.*", func(data []byte) {
+	if _, err := bus.SubscribeJSON("staccato.command.event.*", func(data []byte) {
 		var event queue.CommandEvent
 		if json.Unmarshal(data, &event) == nil {
 			state.ApplyCommandEvent(event)
@@ -202,7 +202,7 @@ func Subscribe(_ context.Context, bus *queue.Bus, state *State) error {
 	}); err != nil {
 		return err
 	}
-	if _, err := bus.SubscribeJSON("envoy.file.response.*", func(data []byte) {
+	if _, err := bus.SubscribeJSON("staccato.file.response.*", func(data []byte) {
 		var response queue.FileResponse
 		if json.Unmarshal(data, &response) == nil {
 			state.ApplyFileResponse(response)
@@ -210,7 +210,7 @@ func Subscribe(_ context.Context, bus *queue.Bus, state *State) error {
 	}); err != nil {
 		return err
 	}
-	if _, err := bus.SubscribeJSON("envoy.logs.*.*", func(data []byte) {
+	if _, err := bus.SubscribeJSON("staccato.logs.*.*", func(data []byte) {
 		var event queue.LogEvent
 		if json.Unmarshal(data, &event) == nil {
 			state.ApplyLogEvent(event)

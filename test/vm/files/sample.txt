@@ -1,1 +1,1 @@
-Envoy sample file access.
+Staccato sample file access.

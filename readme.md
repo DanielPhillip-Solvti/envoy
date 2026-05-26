@@ -1,6 +1,6 @@
-# Envoy - Environment orchestrator platform
+# Staccato - Environment orchestrator platform
 
-## Envoy components
+## Staccato components
 * Platform - Hosts UI for interacting with agents and issuing commands
 * Agent - Go binary deployed on VMs, pub/sub with event queue, strict capabilities determined by manifest, option to link a single github repo
 * Event queue - The platform issues commands and the VMs post responses

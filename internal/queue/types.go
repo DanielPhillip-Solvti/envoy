@@ -6,36 +6,36 @@ import (
 )
 
 const (
-	SubjectAgentRegister  = "envoy.agent.register"
-	SubjectAgentHeartbeat = "envoy.agent.heartbeat"
+	SubjectAgentRegister  = "staccato.agent.register"
+	SubjectAgentHeartbeat = "staccato.agent.heartbeat"
 )
 
 func SubjectCommand(agentID string) string {
-	return fmt.Sprintf("envoy.command.%s", agentID)
+	return fmt.Sprintf("staccato.command.%s", agentID)
 }
 
 func SubjectCommandEvent(commandID string) string {
-	return fmt.Sprintf("envoy.command.event.%s", commandID)
+	return fmt.Sprintf("staccato.command.event.%s", commandID)
 }
 
 func SubjectLogs(agentID, environment string) string {
-	return fmt.Sprintf("envoy.logs.%s.%s", agentID, environment)
+	return fmt.Sprintf("staccato.logs.%s.%s", agentID, environment)
 }
 
 func SubjectLogRequest(agentID string) string {
-	return fmt.Sprintf("envoy.log.request.%s", agentID)
+	return fmt.Sprintf("staccato.log.request.%s", agentID)
 }
 
 func SubjectFileRequest(agentID string) string {
-	return fmt.Sprintf("envoy.file.request.%s", agentID)
+	return fmt.Sprintf("staccato.file.request.%s", agentID)
 }
 
 func SubjectFileResponse(requestID string) string {
-	return fmt.Sprintf("envoy.file.response.%s", requestID)
+	return fmt.Sprintf("staccato.file.response.%s", requestID)
 }
 
 func SubjectCapabilityRequest(agentID string) string {
-	return fmt.Sprintf("envoy.capability.request.%s", agentID)
+	return fmt.Sprintf("staccato.capability.request.%s", agentID)
 }
 
 type ScriptCapability struct {

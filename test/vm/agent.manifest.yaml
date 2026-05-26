@@ -1,10 +1,10 @@
 version: 1
 name: local-test-vm
-repo: "DanielPhillip-Solvti/envoy"
+repo: "DanielPhillip-Solvti/staccato"
 environments: test/vm/envs
 docker:
   compose_file: docker-compose.yaml
-  project_pattern: envoy-{environment}
+  project_pattern: staccato-{environment}
 vm_scripts:
   health:
     path: test/vm/scripts/health.sh

@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/example/envoy/internal/config"
-	"github.com/example/envoy/internal/platform"
-	"github.com/example/envoy/internal/queue"
+	"github.com/example/staccato/internal/config"
+	"github.com/example/staccato/internal/platform"
+	"github.com/example/staccato/internal/queue"
 )
 
 type Server struct {
@@ -120,7 +120,7 @@ func (s *Server) agents(w http.ResponseWriter, r *http.Request) {
 	sort.Slice(visible, func(i, j int) bool {
 		return agentDisplayName(visible[i]) < agentDisplayName(visible[j])
 	})
-	s.renderLayout(w, http.StatusOK, "Envoy | Home", "home_page", homePageData{Agents: visible}, &session.User)
+	s.renderLayout(w, http.StatusOK, "Staccato | Home", "home_page", homePageData{Agents: visible}, &session.User)
 }
 
 func (s *Server) agent(w http.ResponseWriter, r *http.Request) {
@@ -133,7 +133,7 @@ func (s *Server) agent(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	s.renderLayout(w, http.StatusOK, "Envoy | "+data.AgentName, "agent_page", data, &session.User)
+	s.renderLayout(w, http.StatusOK, "Staccato | "+data.AgentName, "agent_page", data, &session.User)
 }
 
 func (s *Server) environment(w http.ResponseWriter, r *http.Request) {
@@ -146,7 +146,7 @@ func (s *Server) environment(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	s.renderLayout(w, http.StatusOK, "Envoy | "+data.AgentName, "agent_page", data, &session.User)
+	s.renderLayout(w, http.StatusOK, "Staccato | "+data.AgentName, "agent_page", data, &session.User)
 }
 
 func (s *Server) agentTabEvents(w http.ResponseWriter, r *http.Request) {

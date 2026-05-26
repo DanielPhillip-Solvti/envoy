@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/envoy/internal/queue"
+	"github.com/example/staccato/internal/queue"
 )
 
 func TestMemoryStateProjectsAgentFromEvents(t *testing.T) {

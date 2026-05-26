@@ -13,8 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/example/envoy/internal/manifest"
-	"github.com/example/envoy/internal/queue"
+	"github.com/example/staccato/internal/manifest"
+	"github.com/example/staccato/internal/queue"
 )
 
 type Runner struct {
@@ -418,5 +418,5 @@ func (r *Runner) fileCapabilities() []queue.FileCapability {
 }
 
 func FileObjectURL(requestID, key string) string {
-	return fmt.Sprintf("object://envoy/%s/%s", requestID, key)
+	return fmt.Sprintf("object://staccato/%s/%s", requestID, key)
 }

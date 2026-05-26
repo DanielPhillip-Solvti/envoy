@@ -11,7 +11,7 @@ type Bus struct {
 }
 
 func Connect(url, nkey string) (*Bus, error) {
-	opts := []nats.Option{nats.Name("envoy")}
+	opts := []nats.Option{nats.Name("staccato")}
 	if nkey != "" {
 		opts = append(opts, nats.UserCredentials(nkey))
 	}

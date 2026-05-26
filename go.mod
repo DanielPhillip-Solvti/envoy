@@ -1,4 +1,4 @@
-module github.com/example/envoy
+module github.com/example/staccato
 
 go 1.22
 
