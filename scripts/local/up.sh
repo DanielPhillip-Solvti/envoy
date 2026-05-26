@@ -22,6 +22,7 @@ echo "Bootstrapping NATS keys and config..."
 make bootstrap-nats-keys
 
 echo "Starting NATS and platform via Docker Compose..."
+docker compose pull
 docker compose up -d nats platform
 
 if [[ ! -f "$PID_FILE" ]]; then
