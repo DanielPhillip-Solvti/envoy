@@ -26,22 +26,24 @@ fi
 echo "fetching latest refs for branch $current_branch"
 git fetch --prune origin "+refs/heads/$current_branch:refs/remotes/origin/$current_branch"
 
-if git show-ref --verify --quiet "refs/remotes/origin/$current_branch"; then
-  if ! git merge --ff-only "origin/$current_branch" >/dev/null 2>&1; then
-    echo "warning: local branch $current_branch diverges from origin/$current_branch; continuing with local history" >&2
-  fi
-fi
-
 if ! git rev-parse --verify "$commit_ref^{commit}" >/dev/null 2>&1; then
   echo "commit $commit_ref was not found after fetch" >&2
   exit 1
 fi
 
-if ! git merge-base --is-ancestor "$commit_ref" HEAD; then
+target_ref="HEAD"
+if git show-ref --verify --quiet "refs/remotes/origin/$current_branch"; then
+  target_ref="origin/$current_branch"
+fi
+
+if ! git merge-base --is-ancestor "$commit_ref" "$target_ref"; then
   echo "commit $commit_ref is not on current branch $current_branch" >&2
   exit 1
 fi
 
-git checkout --detach "$commit_ref" >/dev/null
+echo "resetting branch $current_branch to $commit_ref and removing local changes"
+git reset --hard "$commit_ref" >/dev/null
+git clean -fd >/dev/null
+
 resolved="$(git rev-parse --short=12 HEAD)"
-echo "checked out commit $resolved from branch $current_branch (detached HEAD)"
+echo "branch $current_branch now at commit $resolved (hard reset + clean)"
