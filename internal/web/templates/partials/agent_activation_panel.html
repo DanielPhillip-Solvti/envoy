@@ -1,0 +1,19 @@
+{{define "agent_activation_panel"}}
+  {{if .AgentActivated}}
+    <section class="activation-banner success" id="agent-activation-panel">
+      <p>
+        Agent is activated. Commands, logs, and file requests are enabled.
+      </p>
+    </section>
+  {{else}}
+    <section class="activation-banner" id="agent-activation-panel">
+      <div>
+        <strong>Pending activation</strong>
+        <p>Confirm this agent before sending commands, requesting files, or pulling logs.</p>
+      </div>
+      <form method="post" action="/agents/{{.AgentID}}/activate" hx-post="/agents/{{.AgentID}}/activate{{if .SelectedEnvironment}}?environment={{.SelectedEnvironment}}{{end}}{{if .SelectedService}}{{if .SelectedEnvironment}}&{{else}}?{{end}}service={{.SelectedService}}{{end}}" hx-target="#agent-activation-panel" hx-swap="outerHTML">
+        <button type="submit">Activate agent</button>
+      </form>
+    </section>
+  {{end}}
+{{end}}

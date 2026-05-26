@@ -2,3 +2,8 @@
 /platform
 /var/
 .env
+secrets/*.creds
+secrets/*.nk
+secrets/agents/*.nk
+nats/server.conf
+var/keys/

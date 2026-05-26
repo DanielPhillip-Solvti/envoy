@@ -43,6 +43,7 @@ type agentPageData struct {
 	AgentID             string
 	AgentName           string
 	Agent               platform.AgentView
+	AgentActivated      bool
 	OrderedEnvironments []queue.EnvironmentStatus
 	SelectedEnvironment string
 	SelectedService     string
@@ -91,6 +92,7 @@ func NewServer(bus *queue.Bus, state *platform.State, cfg config.Platform) http.
 	mux.HandleFunc("GET /agents/{agentID}/tabs/commands", s.agentTabCommands)
 	mux.HandleFunc("GET /agents/{agentID}/tabs/files", s.agentTabFiles)
 	mux.HandleFunc("GET /agents/{agentID}/env/{environment}", s.environment)
+	mux.HandleFunc("POST /agents/{agentID}/activate", s.activateAgent)
 	mux.HandleFunc("POST /agents/{agentID}/env/{environment}/logs", s.requestLogs)
 	mux.HandleFunc("POST /agents/{agentID}/commands", s.createCommand)
 	mux.HandleFunc("POST /agents/{agentID}/files/{fileKey}", s.requestFile)
@@ -101,6 +103,30 @@ func NewServer(bus *queue.Bus, state *platform.State, cfg config.Platform) http.
 	mux.HandleFunc("GET /auth/github/callback", s.githubCallback)
 	mux.HandleFunc("POST /auth/logout", s.logout)
 	return mux
+}
+
+func (s *Server) activateAgent(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
+	agentID := r.PathValue("agentID")
+	agent, ok := s.state.Agent(agentID)
+	if !ok || !s.canViewAgent(r.Context(), session.AccessToken, agent) {
+		http.NotFound(w, r)
+		return
+	}
+	s.state.ActivateAgent(agentID)
+	if isHX(r) {
+		data, ok := s.agentData(r.Context(), session, agentID, r.URL.Query().Get("environment"), r.URL.Query().Get("service"))
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		s.renderTemplate(w, http.StatusOK, "agent_activation_panel", data)
+		return
+	}
+	http.Redirect(w, r, "/agents/"+agentID, http.StatusSeeOther)
 }
 
 func (s *Server) agents(w http.ResponseWriter, r *http.Request) {
@@ -227,6 +253,10 @@ func (s *Server) requestLogs(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if !s.state.AgentActivated(agentID) {
+		http.Error(w, "agent must be activated before requesting logs", http.StatusForbidden)
+		return
+	}
 	req := queue.LogRequest{
 		RequestID:   requestID(),
 		AgentID:     agentID,
@@ -266,6 +296,10 @@ func (s *Server) createCommand(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if !s.state.AgentActivated(agentID) {
+		http.Error(w, "agent must be activated before running commands", http.StatusForbidden)
+		return
+	}
 	req := queue.CommandRequest{
 		CommandID:   commandID(),
 		AgentID:     agentID,
@@ -303,6 +337,10 @@ func (s *Server) requestFile(w http.ResponseWriter, r *http.Request) {
 	agent, ok := s.state.Agent(agentID)
 	if !ok || !s.canViewAgent(r.Context(), session.AccessToken, agent) {
 		http.NotFound(w, r)
+		return
+	}
+	if !s.state.AgentActivated(agentID) {
+		http.Error(w, "agent must be activated before requesting files", http.StatusForbidden)
 		return
 	}
 	req := queue.FileRequest{
@@ -474,6 +512,7 @@ func (s *Server) agentData(ctx context.Context, session authSession, agentID, se
 		agentID = agent.Registration.AgentID
 	}
 	agentName := agentDisplayName(agent)
+	activated := s.state.AgentActivated(agentID)
 
 	orderedEnvironments := orderedEnvironments(agent.Heartbeat.Environments)
 
@@ -490,6 +529,7 @@ func (s *Server) agentData(ctx context.Context, session authSession, agentID, se
 		AgentID:             agentID,
 		AgentName:           agentName,
 		Agent:               agent,
+		AgentActivated:      activated,
 		OrderedEnvironments: orderedEnvironments,
 		SelectedEnvironment: selectedEnvironment,
 		SelectedService:     selectedService,

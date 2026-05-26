@@ -13,13 +13,17 @@ Yes, this repo now includes [example.env](example.env) as a template.
 
 Local/dev setup:
 1. Copy template: cp example.env .env
-2. Fill real values for OAuth fields:
+2. Generate local NATS seeds and auth config:
+	- make bootstrap-nats-keys
+	- make bootstrap-agent-key AGENT=<agent-id> (repeat per VM/agent)
+3. Fill real values for OAuth fields:
 	- STACCATO_GITHUB_CLIENT_ID
 	- STACCATO_GITHUB_CLIENT_SECRET
 	- STACCATO_GITHUB_CALLBACK_URL
+	- STACCATO_NATS_NKEY (path to platform NATS seed file)
 	- If you need to create/configure a GitHub token, use: https://github.com/settings/personal-access-tokens
-3. Keep STACCATO_SESSION_SECURE=false for local HTTP.
-4. Start platform with those env vars loaded (for compose, make sure .env is present).
+4. Keep STACCATO_SESSION_SECURE=false for local HTTP.
+5. Start platform with those env vars loaded (for compose, make sure .env is present).
 
 Do not commit real credentials.
 
@@ -61,11 +65,14 @@ When to pull a repo on the VM:
 
 5. Set env vars and run as service:
 	- Required: STACCATO_NATS_URL
+	- Required: STACCATO_NATS_NKEY (path to agent NATS seed file)
 	- Usually set: STACCATO_MANIFEST, optional STACCATO_OBJECT_DIR
+	- For local `make run-agent`, use `test/vm/.env` for agent-only overrides (for example `STACCATO_NATS_NKEY=secrets/agents/local-test-vm.nk`)
 
 6. Validate startup:
 	- agent process is running
 	- agent appears in platform UI
+	- activate the agent in the platform UI before issuing commands
 	- commands/logs/files round-trip from platform
 
 Notes:

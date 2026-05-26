@@ -39,6 +39,8 @@ func TestMemoryStateProjectsAgentFromEvents(t *testing.T) {
 
 func TestMemoryStateKeepsCommandEventsInMemory(t *testing.T) {
 	state := NewMemoryState(time.Now)
+	state.ActivateAgent("agent-1")
+	state.ApplyCommandRequest(queue.CommandRequest{CommandID: "cmd-1", AgentID: "agent-1"})
 	state.ApplyCommandEvent(queue.CommandEvent{CommandID: "cmd-1", Status: "started"})
 	state.ApplyCommandEvent(queue.CommandEvent{CommandID: "cmd-1", Status: "succeeded"})
 
@@ -53,8 +55,10 @@ func TestMemoryStateKeepsCommandEventsInMemory(t *testing.T) {
 
 func TestMemoryStateKeepsFileResponsesInMemory(t *testing.T) {
 	state := NewMemoryState(time.Now)
+	state.ActivateAgent("agent-1")
 	state.ApplyFileResponse(queue.FileResponse{
 		RequestID: "file-1",
+		AgentID:   "agent-1",
 		FileKey:   "sample",
 		ObjectURL: "file://var/objects/file-1-sample.txt",
 		Size:      12,
@@ -66,5 +70,24 @@ func TestMemoryStateKeepsFileResponsesInMemory(t *testing.T) {
 	}
 	if files[0].FileKey != "sample" {
 		t.Fatalf("file key = %q", files[0].FileKey)
+	}
+}
+
+func TestMemoryStateIgnoresTrafficFromUnconfirmedAgent(t *testing.T) {
+	state := NewMemoryState(time.Now)
+
+	state.ApplyCommandRequest(queue.CommandRequest{CommandID: "cmd-1", AgentID: "agent-1"})
+	state.ApplyCommandEvent(queue.CommandEvent{CommandID: "cmd-1", Status: "started"})
+	state.ApplyFileResponse(queue.FileResponse{RequestID: "file-1", AgentID: "agent-1", FileKey: "sample"})
+	state.ApplyLogEvent(queue.LogEvent{AgentID: "agent-1", Environment: "main", Line: "hello"})
+
+	if got := len(state.CommandEvents("cmd-1")); got != 0 {
+		t.Fatalf("command event count = %d, want 0", got)
+	}
+	if got := len(state.FileResponses()); got != 0 {
+		t.Fatalf("file response count = %d, want 0", got)
+	}
+	if got := len(state.Logs("agent-1", "main")); got != 0 {
+		t.Fatalf("log event count = %d, want 0", got)
 	}
 }

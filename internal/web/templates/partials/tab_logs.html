@@ -5,10 +5,14 @@
     {{if .SelectedEnvironment}}
     <form hx-post="/agents/{{.AgentID}}/env/{{.SelectedEnvironment}}/logs" hx-target="#tab-panel" hx-swap="innerHTML">
       <input type="hidden" name="service" value="{{.SelectedService}}">
-      <button type="submit" class="ghost">Refresh</button>
+      <button type="submit" class="ghost" {{if not .AgentActivated}}disabled title="Activate agent first"{{end}}>Refresh</button>
     </form>
     {{end}}
   </div>
+
+  {{if not .AgentActivated}}
+    <p class="request-status">Activate this agent to request logs.</p>
+  {{end}}
 
   {{if .SelectedEnvironment}}
     <div class="service-bar">

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ type State struct {
 	mu     sync.RWMutex
 	now    func() time.Time
 	agents map[string]AgentView
+	active map[string]bool
 	cmds   map[string]queue.CommandRequest
 	events map[string][]queue.CommandEvent
 	files  map[string]queue.FileResponse
@@ -30,6 +32,7 @@ func NewMemoryState(now func() time.Time) *State {
 	return &State{
 		now:    now,
 		agents: map[string]AgentView{},
+		active: map[string]bool{},
 		cmds:   map[string]queue.CommandRequest{},
 		events: map[string][]queue.CommandEvent{},
 		files:  map[string]queue.FileResponse{},
@@ -61,21 +64,48 @@ func (s *State) ApplyHeartbeat(hb queue.Heartbeat) {
 	s.agents[hb.AgentID] = view
 }
 
+func (s *State) ActivateAgent(agentID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.active[agentID] = true
+}
+
+func (s *State) AgentActivated(agentID string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.active[agentID]
+}
+
 func (s *State) ApplyCommandEvent(event queue.CommandEvent) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	agentID := strings.TrimSpace(event.AgentID)
+	if agentID == "" {
+		if req, ok := s.cmds[event.CommandID]; ok {
+			agentID = strings.TrimSpace(req.AgentID)
+		}
+	}
+	if !s.active[agentID] {
+		return
+	}
 	s.events[event.CommandID] = append(s.events[event.CommandID], event)
 }
 
 func (s *State) ApplyFileResponse(response queue.FileResponse) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !s.active[strings.TrimSpace(response.AgentID)] {
+		return
+	}
 	s.files[response.RequestID] = response
 }
 
 func (s *State) ApplyLogEvent(event queue.LogEvent) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !s.active[strings.TrimSpace(event.AgentID)] {
+		return
+	}
 	key := event.AgentID + "/" + event.Environment
 	s.logs[key] = append(s.logs[key], event)
 }

@@ -4,6 +4,10 @@
     <h2>Commands</h2>
   </div>
 
+  {{if not .AgentActivated}}
+    <p class="request-status">Activate this agent to run commands.</p>
+  {{end}}
+
   <section class="commands-section">
     <h3>VM Commands</h3>
     <div class="commands-grid">
@@ -14,7 +18,7 @@
               <h3>{{$script.Name}}</h3>
               <span class="command-pill">vm</span>
             </div>
-            <button type="button" class="run-action" onclick="document.getElementById('cmd-modal-vm-{{$index}}').showModal()">Run</button>
+            <button type="button" class="run-action" onclick="document.getElementById('cmd-modal-vm-{{$index}}').showModal()" {{if not $.AgentActivated}}disabled title="Activate agent first"{{end}}>Run</button>
 
             <dialog id="cmd-modal-vm-{{$index}}" class="command-modal">
               <form class="command-modal-form" hx-post="/agents/{{$.AgentID}}/commands" hx-target="#command-status" hx-swap="innerHTML" onsubmit="this.closest('dialog').close()">
@@ -28,7 +32,7 @@
                 {{end}}
                 <div class="modal-actions">
                   <button type="button" class="ghost" onclick="this.closest('dialog').close()">Cancel</button>
-                  <button type="submit">Run command</button>
+                  <button type="submit" {{if not $.AgentActivated}}disabled title="Activate agent first"{{end}}>Run command</button>
                 </div>
               </form>
             </dialog>
@@ -48,7 +52,7 @@
               <h3>{{$script.Name}}</h3>
               <span class="command-pill">env</span>
             </div>
-            <button type="button" class="run-action" onclick="document.getElementById('cmd-modal-env-{{$index}}').showModal()">Run</button>
+            <button type="button" class="run-action" onclick="document.getElementById('cmd-modal-env-{{$index}}').showModal()" {{if not $.AgentActivated}}disabled title="Activate agent first"{{end}}>Run</button>
 
             <dialog id="cmd-modal-env-{{$index}}" class="command-modal">
               <form class="command-modal-form" hx-post="/agents/{{$.AgentID}}/commands" hx-target="#command-status" hx-swap="innerHTML" onsubmit="this.closest('dialog').close()">
@@ -72,7 +76,7 @@
                 {{end}}
                 <div class="modal-actions">
                   <button type="button" class="ghost" onclick="this.closest('dialog').close()">Cancel</button>
-                  <button type="submit">Run command</button>
+                  <button type="submit" {{if not $.AgentActivated}}disabled title="Activate agent first"{{end}}>Run command</button>
                 </div>
               </form>
             </dialog>

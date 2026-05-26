@@ -2,8 +2,12 @@
 <section class="scrollable">
   <div class="panel-head">
     <h2>Files</h2>
-    <button class="ghost" hx-get="/agents/{{.AgentID}}/tabs/files" hx-target="#tab-panel" hx-swap="innerHTML">Refresh</button>
+    <button class="ghost" hx-get="/agents/{{.AgentID}}/tabs/files" hx-target="#tab-panel" hx-swap="innerHTML" {{if not .AgentActivated}}disabled title="Activate agent first"{{end}}>Refresh</button>
   </div>
+
+  {{if not .AgentActivated}}
+    <p class="request-status">Activate this agent to request files.</p>
+  {{end}}
 
   <div class="files-grid">
     {{range .Agent.Registration.Files}}
@@ -12,7 +16,7 @@
           <span class="file-icon" aria-hidden="true">📄</span>
           <h3>{{.Key}}</h3>
         </div>
-        <button type="submit" class="icon-action download" title="Request and download" aria-label="Request and download">⬇</button>
+        <button type="submit" class="icon-action download" aria-label="Request and download" {{if not $.AgentActivated}}disabled title="Activate agent first"{{else}}title="Request and download"{{end}}>⬇</button>
       </form>
     {{else}}
       <p class="muted">No file capabilities were registered by this agent.</p>

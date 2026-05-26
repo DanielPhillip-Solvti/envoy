@@ -15,6 +15,12 @@ import (
 
 func main() {
 	cfg := config.AgentFromEnv()
+	if cfg.NATSNKey == "" {
+		cfg.NATSNKey = "secrets/agent.nk"
+	}
+	if _, err := os.Stat(cfg.NATSNKey); err != nil {
+		log.Fatalf("STACCATO_NATS_NKEY seed file is required and must exist: %v", err)
+	}
 	mf, err := manifest.Load(cfg.ManifestPath)
 	if err != nil {
 		log.Fatalf("load manifest: %v", err)

@@ -1,7 +1,9 @@
 services:
   nats:
     image: nats:2.10
-    command: ["-js", "-m", "8222"]
+    command: ["-c", "/etc/nats/server.conf"]
+    volumes:
+      - ./nats/server.conf:/etc/nats/server.conf:ro
     ports:
       - "4222:4222"
       - "8222:8222"
@@ -13,6 +15,9 @@ services:
     environment:
       STACCATO_HTTP_ADDR: ":8080"
       STACCATO_NATS_URL: nats://nats:4222
+      STACCATO_NATS_NKEY: /run/secrets/staccato-platform.nk
+    volumes:
+      - ./secrets/platform.nk:/run/secrets/staccato-platform.nk:ro
     ports:
       - "8080:8080"
     depends_on:

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/example/staccato/internal/config"
+	"github.com/example/staccato/internal/natsauth"
 	"github.com/example/staccato/internal/platform"
 	"github.com/example/staccato/internal/queue"
 	"github.com/example/staccato/internal/web"
@@ -17,6 +18,22 @@ import (
 
 func main() {
 	cfg := config.PlatformFromEnv()
+	if cfg.NATSNKey == "" {
+		cfg.NATSNKey = "secrets/platform.nk"
+	}
+	if _, err := os.Stat(cfg.NATSNKey); err != nil {
+		if os.IsNotExist(err) {
+			generated, bootstrapErr := natsauth.EnsureBootstrap(cfg.NATSNKey, "secrets/agent.nk", "secrets/agents", "nats/server.conf")
+			if bootstrapErr != nil {
+				log.Fatalf("bootstrap nats auth: %v", bootstrapErr)
+			}
+			if generated {
+				log.Printf("generated local NATS auth material at %s and nats/server.conf", cfg.NATSNKey)
+			}
+		} else {
+			log.Fatalf("read STACCATO_NATS_NKEY: %v", err)
+		}
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 

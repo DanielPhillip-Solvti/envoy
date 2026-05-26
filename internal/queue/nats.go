@@ -2,6 +2,7 @@ package queue
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/nats-io/nats.go"
 )
@@ -11,10 +12,15 @@ type Bus struct {
 }
 
 func Connect(url, nkey string) (*Bus, error) {
-	opts := []nats.Option{nats.Name("staccato")}
-	if nkey != "" {
-		opts = append(opts, nats.UserCredentials(nkey))
+	if nkey == "" {
+		return nil, fmt.Errorf("nats nkey seed file is required")
 	}
+	opts := []nats.Option{nats.Name("staccato")}
+	nkeyOpt, err := nats.NkeyOptionFromSeed(nkey)
+	if err != nil {
+		return nil, fmt.Errorf("load nkey seed: %w", err)
+	}
+	opts = append(opts, nkeyOpt)
 	nc, err := nats.Connect(url, opts...)
 	if err != nil {
 		return nil, err

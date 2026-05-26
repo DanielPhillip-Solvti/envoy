@@ -316,6 +316,26 @@ a { color: inherit; text-decoration: none; }
   overflow: hidden;
 }
 
+.activation-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+  background: #fff7e6;
+  border-bottom: 1px solid #f0d7a8;
+}
+
+.activation-banner.success {
+  background: var(--success-light);
+  border-bottom-color: #b7e6c7;
+}
+
+.activation-banner p {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
 .agent-top {
   flex-shrink: 0;
   padding: 0 20px;
@@ -351,6 +371,11 @@ a { color: inherit; text-decoration: none; }
   color: var(--accent);
   border-bottom-color: var(--accent);
   font-weight: 600;
+}
+
+.tab:disabled {
+  color: var(--text-subtle);
+  cursor: not-allowed;
 }
 
 /* ── Tab panel ── */
@@ -413,6 +438,11 @@ button {
 button:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 button.ghost {
