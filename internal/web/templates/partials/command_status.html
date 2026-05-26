@@ -13,7 +13,7 @@
 
 {{define "command_events"}}
 <div class="event-list event-stream" data-autoscroll="bottom">
-  {{range .}}
+  {{range .Events}}
     <article class="event-item">
       <span class="event-status {{.Status}}">{{.Status}}</span>
       <div class="event-message">
@@ -26,4 +26,7 @@
     <p class="muted">No events yet.</p>
   {{end}}
 </div>
+{{if .RefreshCommitsURL}}
+  <div hx-get="{{.RefreshCommitsURL}}" hx-trigger="load delay:150ms" hx-target="#tab-panel" hx-swap="innerHTML"></div>
+{{end}}
 {{end}}

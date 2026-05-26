@@ -124,12 +124,21 @@ func (s *Server) activateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	s.state.ActivateAgent(agentID)
 	if isHX(r) {
-		data, ok := s.agentData(r.Context(), session, agentID, r.URL.Query().Get("environment"), r.URL.Query().Get("service"))
-		if !ok {
-			http.NotFound(w, r)
-			return
+		redirectPath := "/agents/" + agentID
+		selectedEnvironment := strings.TrimSpace(r.URL.Query().Get("environment"))
+		selectedService := strings.TrimSpace(r.URL.Query().Get("service"))
+		if selectedEnvironment != "" {
+			redirectPath = "/agents/" + agentID + "/env/" + url.PathEscape(selectedEnvironment)
 		}
-		s.renderTemplate(w, http.StatusOK, "agent_activation_panel", data)
+		if selectedService != "" {
+			separator := "?"
+			if strings.Contains(redirectPath, "?") {
+				separator = "&"
+			}
+			redirectPath += separator + "service=" + url.QueryEscape(selectedService)
+		}
+		w.Header().Set("HX-Redirect", redirectPath)
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	http.Redirect(w, r, "/agents/"+agentID, http.StatusSeeOther)
@@ -474,7 +483,26 @@ func (s *Server) commandEvents(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	s.renderTemplate(w, http.StatusOK, "command_events", events)
+	data := commandEventsData{Events: events}
+	for i := len(events) - 1; i >= 0; i-- {
+		event := events[i]
+		if event.Status != "succeeded" || event.Scope != "env" || event.Name != "checkout_commit" {
+			continue
+		}
+		agentID := strings.TrimSpace(event.AgentID)
+		environment := strings.TrimSpace(event.Environment)
+		if agentID == "" || environment == "" {
+			break
+		}
+		data.RefreshCommitsURL = "/agents/" + url.PathEscape(agentID) + "/tabs/commits?environment=" + url.QueryEscape(environment)
+		break
+	}
+	s.renderTemplate(w, http.StatusOK, "command_events", data)
+}
+
+type commandEventsData struct {
+	Events            []queue.CommandEvent
+	RefreshCommitsURL string
 }
 
 type fileRequestStatusData struct {

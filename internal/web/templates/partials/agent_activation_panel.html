@@ -1,11 +1,5 @@
 {{define "agent_activation_panel"}}
-  {{if .AgentActivated}}
-    <section class="activation-banner success" id="agent-activation-panel">
-      <p>
-        Agent is activated. Commands, logs, and file requests are enabled.
-      </p>
-    </section>
-  {{else}}
+  {{if not .AgentActivated}}
     <section class="activation-banner" id="agent-activation-panel">
       <div>
         <strong>Pending activation</strong>
