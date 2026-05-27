@@ -1,4 +1,4 @@
-.PHONY: test test-e2e build compose-config bootstrap-nats-keys bootstrap-agent-key run-nats run-platform run-agent dev-up dev-down
+.PHONY: test test-e2e build compose-config bootstrap-nats-keys bootstrap-agent-key run-nats run-platform run-agent dev-up dev-down dev-up-local dev-down-local
 
 NATS_SERVER ?= $(shell command -v nats-server 2>/dev/null || echo "$(HOME)/go/bin/nats-server")
 
@@ -67,8 +67,14 @@ run-agent:
 	set +a; \
 	go run ./cmd/agent
 
-dev-up:
+up:
 	./scripts/local/up.sh
 
-dev-down:
+down:
 	./scripts/local/down.sh
+
+dev-up:
+	./scripts/local/up-local.sh
+
+dev-down:
+	./scripts/local/down-local.sh
