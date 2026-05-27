@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,7 +33,8 @@ func (r *Runner) Run(ctx context.Context) error {
 	if err := r.register(); err != nil {
 		return err
 	}
-	if _, err := r.bus.SubscribeJSON(queue.SubjectCommand(r.manifest.AgentID()), func(data []byte) {
+	queueGroup := "staccato.agent." + r.manifest.AgentID()
+	if _, err := r.bus.SubscribeQueueJSON(queue.SubjectCommand(r.manifest.AgentID()), queueGroup, func(data []byte) {
 		var req queue.CommandRequest
 		if json.Unmarshal(data, &req) == nil {
 			go r.handleCommand(ctx, req)
@@ -40,7 +42,7 @@ func (r *Runner) Run(ctx context.Context) error {
 	}); err != nil {
 		return err
 	}
-	if _, err := r.bus.SubscribeJSON(queue.SubjectFileRequest(r.manifest.AgentID()), func(data []byte) {
+	if _, err := r.bus.SubscribeQueueJSON(queue.SubjectFileRequest(r.manifest.AgentID()), queueGroup, func(data []byte) {
 		var req queue.FileRequest
 		if json.Unmarshal(data, &req) == nil {
 			go r.handleFileRequest(req)
@@ -48,7 +50,7 @@ func (r *Runner) Run(ctx context.Context) error {
 	}); err != nil {
 		return err
 	}
-	if _, err := r.bus.SubscribeJSON(queue.SubjectLogRequest(r.manifest.AgentID()), func(data []byte) {
+	if _, err := r.bus.SubscribeQueueJSON(queue.SubjectLogRequest(r.manifest.AgentID()), queueGroup, func(data []byte) {
 		var req queue.LogRequest
 		if json.Unmarshal(data, &req) == nil {
 			go r.handleLogRequest(ctx, req)
@@ -56,7 +58,7 @@ func (r *Runner) Run(ctx context.Context) error {
 	}); err != nil {
 		return err
 	}
-	if _, err := r.bus.SubscribeJSON(queue.SubjectCapabilityRequest(r.manifest.AgentID()), func(data []byte) {
+	if _, err := r.bus.SubscribeQueueJSON(queue.SubjectCapabilityRequest(r.manifest.AgentID()), queueGroup, func(data []byte) {
 		var req queue.CapabilityRequest
 		if json.Unmarshal(data, &req) == nil {
 			go r.handleCapabilityRequest(req)
@@ -100,6 +102,7 @@ func (r *Runner) heartbeat() error {
 }
 
 func (r *Runner) handleCommand(ctx context.Context, req queue.CommandRequest) {
+	log.Printf("agent command received pid=%d command_id=%s scope=%s name=%s environment=%s args=%q", os.Getpid(), req.CommandID, req.Scope, req.Name, req.Environment, req.Args)
 	atomic.AddUint64(&r.metrics.CommandsStarted, 1)
 	r.emit(req, "started", "", "command started", 0)
 
@@ -144,18 +147,22 @@ func (r *Runner) handleCommand(ctx context.Context, req queue.CommandRequest) {
 	stdout, _ := cmd.StdoutPipe()
 	stderr, _ := cmd.StderrPipe()
 	if err := cmd.Start(); err != nil {
+		log.Printf("agent command start failed pid=%d command_id=%s error=%q", os.Getpid(), req.CommandID, err)
 		atomic.AddUint64(&r.metrics.CommandsFailed, 1)
 		r.emit(req, "failed", "", err.Error(), 1)
 		return
 	}
+	log.Printf("agent command started pid=%d command_id=%s child_pid=%d script=%s", os.Getpid(), req.CommandID, cmd.Process.Pid, scriptPath)
 	go r.scan(req, "stdout", stdout)
 	go r.scan(req, "stderr", stderr)
 
 	if err := cmd.Wait(); err != nil {
+		log.Printf("agent command failed pid=%d command_id=%s exit_code=%d error=%q", os.Getpid(), req.CommandID, cmd.ProcessState.ExitCode(), err)
 		atomic.AddUint64(&r.metrics.CommandsFailed, 1)
 		r.emit(req, "failed", "", err.Error(), cmd.ProcessState.ExitCode())
 		return
 	}
+	log.Printf("agent command succeeded pid=%d command_id=%s exit_code=0", os.Getpid(), req.CommandID)
 	atomic.AddUint64(&r.metrics.CommandsSucceeded, 1)
 	r.emit(req, "succeeded", "", "command succeeded", 0)
 	// Refresh environment status immediately so UI reflects state-changing commands quickly.

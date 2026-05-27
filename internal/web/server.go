@@ -483,7 +483,7 @@ func (s *Server) commandEvents(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	data := commandEventsData{Events: events}
+	data := commandEventsData{Events: events, Toasts: buildCommandToasts(events)}
 	for i := len(events) - 1; i >= 0; i-- {
 		event := events[i]
 		if event.Status != "succeeded" || event.Scope != "env" || event.Name != "checkout_commit" {
@@ -502,7 +502,86 @@ func (s *Server) commandEvents(w http.ResponseWriter, r *http.Request) {
 
 type commandEventsData struct {
 	Events            []queue.CommandEvent
+	Toasts            []commandToast
 	RefreshCommitsURL string
+}
+
+type commandToast struct {
+	Key     string
+	Status  string
+	Title   string
+	Message string
+	Meta    string
+}
+
+func buildCommandToasts(events []queue.CommandEvent) []commandToast {
+	toasts := make([]commandToast, 0, len(events))
+	latestOutput := ""
+	for _, event := range events {
+		if event.Status == "output" {
+			if message := formatCommandToastOutput(event.Stream, event.Message); message != "" {
+				latestOutput = message
+			}
+			continue
+		}
+		if event.Status != "started" && event.Status != "succeeded" && event.Status != "failed" {
+			continue
+		}
+		message := latestOutput
+		if message == "" && event.Status == "failed" {
+			message = strings.TrimSpace(event.Message)
+		}
+		toasts = append(toasts, commandToast{
+			Key:     event.CommandID + ":" + event.Status,
+			Status:  event.Status,
+			Title:   commandToastTitle(event),
+			Message: message,
+			Meta:    commandToastMeta(event),
+		})
+	}
+	return toasts
+}
+
+func formatCommandToastOutput(stream, message string) string {
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return ""
+	}
+	switch strings.TrimSpace(stream) {
+	case "", "stdout":
+		return message
+	case "stderr":
+		return "Error output: " + message
+	default:
+		return stream + ": " + message
+	}
+}
+
+func commandToastTitle(event queue.CommandEvent) string {
+	if event.Scope != "" {
+		if event.Name != "" {
+			return event.Scope + "/" + event.Name
+		}
+		return event.Scope + "/unknown"
+	}
+	if event.Name != "" {
+		return event.Name
+	}
+	if event.CommandID != "" {
+		return "cmd:" + event.CommandID
+	}
+	return "unknown"
+}
+
+func commandToastMeta(event queue.CommandEvent) string {
+	meta := ""
+	if event.Environment != "" {
+		meta = event.Environment + " · "
+	}
+	if event.SentAt.IsZero() {
+		return meta + "pending"
+	}
+	return meta + event.SentAt.Format("15:04:05")
 }
 
 type fileRequestStatusData struct {

@@ -13,6 +13,7 @@
 * Shows vm level scripts
 * Shows environments active on vm per agent, these correspond to branches, shows docker service status per env
 * Shows environment level scripts
+* agents as tile elements-> agent page, nav by environment, tabs: events, logs, files, commands
 
 ## Agent
 * optionally linked to a single github repo which will limit access at the platform

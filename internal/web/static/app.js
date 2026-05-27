@@ -34,6 +34,33 @@
     return document.getElementById("toast-stack");
   }
 
+  function setToastMessage(messageEl, message) {
+    if (!messageEl) {
+      return;
+    }
+
+    const text = message || "";
+    if (!text) {
+      messageEl.textContent = "";
+      return;
+    }
+
+    messageEl.replaceChildren();
+    const parts = text.split(/<([^<>]+)>/g);
+    parts.forEach((part, index) => {
+      if (!part) {
+        return;
+      }
+      if (index % 2 === 1) {
+        const strong = document.createElement("strong");
+        strong.textContent = part;
+        messageEl.appendChild(strong);
+        return;
+      }
+      messageEl.appendChild(document.createTextNode(part));
+    });
+  }
+
   function showToast({ status, title, message, meta }) {
     const stack = toastStack();
     if (!stack) {
@@ -62,7 +89,7 @@
       statusEl.textContent = status || "update";
     }
     if (messageEl) {
-      messageEl.textContent = message || "";
+      setToastMessage(messageEl, message);
     }
     if (metaEl) {
       metaEl.textContent = meta || "";

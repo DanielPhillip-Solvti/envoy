@@ -45,3 +45,9 @@ func (b *Bus) SubscribeJSON(subject string, handler func([]byte)) (*nats.Subscri
 		handler(msg.Data)
 	})
 }
+
+func (b *Bus) SubscribeQueueJSON(subject, group string, handler func([]byte)) (*nats.Subscription, error) {
+	return b.nc.QueueSubscribe(subject, group, func(msg *nats.Msg) {
+		handler(msg.Data)
+	})
+}

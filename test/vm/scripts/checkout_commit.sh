@@ -46,4 +46,4 @@ git reset --hard "$commit_ref" >/dev/null
 git clean -fd >/dev/null
 
 resolved="$(git rev-parse --short=12 HEAD)"
-echo "branch $current_branch now at commit $resolved (hard reset + clean)"
+echo "Local branch <$current_branch> reset to commit <$resolved>"
