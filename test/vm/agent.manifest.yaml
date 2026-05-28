@@ -5,6 +5,10 @@ environments: test/vm/envs
 docker:
   compose_file: docker-compose.yaml
   project_pattern: staccato-{environment}
+allowed_builtins:
+  - deploy
+  - backup
+  - restore
 vm_scripts:
   health:
     path: test/vm/scripts/health.sh

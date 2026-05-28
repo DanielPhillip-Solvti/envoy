@@ -2,7 +2,7 @@
 <div class="agent-layout">
   <aside class="agent-sidebar">
     <div class="agent-identity">
-      <h2>{{.AgentName}}</h2>
+      <h2>{{if .Agent.Registration.Repo}}{{repoDisplayName .Agent.Registration.Repo}}{{else}}{{.AgentID}}{{end}}</h2>
       <p>{{.AgentID}}</p>
     </div>
 

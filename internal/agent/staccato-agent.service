@@ -1,0 +1,16 @@
+[Unit]
+Description=Staccato VM Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/staccato-agent
+EnvironmentFile=/opt/staccato-agent/agent.env
+ExecStart=/opt/staccato-agent/staccato-agent
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target

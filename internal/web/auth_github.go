@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/example/staccato/internal/platform"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 const (
@@ -116,14 +117,18 @@ type githubClient struct {
 	clientID     string
 	clientSecret string
 	callbackURL  string
+	appID        string
+	privateKey   string
 	httpClient   *http.Client
 }
 
-func newGitHubClient(clientID, clientSecret, callbackURL string) *githubClient {
+func newGitHubClient(clientID, clientSecret, callbackURL, appID, privateKey string) *githubClient {
 	return &githubClient{
 		clientID:     strings.TrimSpace(clientID),
 		clientSecret: strings.TrimSpace(clientSecret),
 		callbackURL:  strings.TrimSpace(callbackURL),
+		appID:        strings.TrimSpace(appID),
+		privateKey:   strings.TrimSpace(privateKey),
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
@@ -138,9 +143,89 @@ func (g *githubClient) loginURL(state string) string {
 	q := url.Values{}
 	q.Set("client_id", g.clientID)
 	q.Set("redirect_uri", g.callbackURL)
-	q.Set("scope", "read:user repo")
+	q.Set("scope", "read:user repo read:packages")
 	q.Set("state", state)
 	return "https://github.com/login/oauth/authorize?" + q.Encode()
+}
+
+func (g *githubClient) appJWT() (string, error) {
+	if g.appID == "" || g.privateKey == "" {
+		return "", errors.New("github app not configured")
+	}
+	key, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(g.privateKey))
+	if err != nil {
+		return "", fmt.Errorf("failed to parse private key: %w", err)
+	}
+
+	now := time.Now()
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+		"iat": now.Unix() - 60,
+		"exp": now.Add(10 * time.Minute).Unix(),
+		"iss": g.appID,
+	})
+
+	return token.SignedString(key)
+}
+
+func (g *githubClient) installationToken(ctx context.Context, installationID string) (string, error) {
+	jwtToken, err := g.appJWT()
+	if err != nil {
+		return "", err
+	}
+
+	u := fmt.Sprintf("https://api.github.com/app/installations/%s/access_tokens", installationID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, nil)
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("Authorization", "Bearer "+jwtToken)
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	resp, err := g.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return "", fmt.Errorf("failed to get installation token (status %d): %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var payload struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return "", err
+	}
+	return payload.Token, nil
+}
+
+func (g *githubClient) findInstallation(ctx context.Context, repo string) (string, error) {
+	owner, _, err := parseGitHubRepo(repo)
+	if err != nil {
+		return "", err
+	}
+	jwtToken, err := g.appJWT()
+	if err != nil {
+		return "", err
+	}
+
+	// Try user endpoint first
+	u := fmt.Sprintf("https://api.github.com/users/%s/installation", owner)
+	var payload struct {
+		ID int64 `json:"id"`
+	}
+	if err := g.apiGetWithToken(ctx, jwtToken, u, &payload); err != nil {
+		// Fallback to org endpoint
+		u = fmt.Sprintf("https://api.github.com/orgs/%s/installation", owner)
+		if err = g.apiGetWithToken(ctx, jwtToken, u, &payload); err != nil {
+			return "", fmt.Errorf("could not find installation for %s: %w", owner, err)
+		}
+	}
+	return fmt.Sprintf("%d", payload.ID), nil
 }
 
 func (g *githubClient) exchangeCode(ctx context.Context, code string) (string, error) {
@@ -281,7 +366,14 @@ func (g *githubClient) commitHistory(ctx context.Context, token, repo, branch st
 
 func (g *githubClient) apiGet(ctx context.Context, token, endpoint string, out any) error {
 	u := "https://api.github.com" + endpoint
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if strings.HasPrefix(endpoint, "http") {
+		u = endpoint
+	}
+	return g.apiGetWithToken(ctx, token, u, out)
+}
+
+func (g *githubClient) apiGetWithToken(ctx context.Context, token, url string, out any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}

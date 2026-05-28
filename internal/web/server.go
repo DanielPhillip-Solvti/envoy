@@ -1,11 +1,13 @@
 package web
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"embed"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/url"
@@ -16,6 +18,7 @@ import (
 	"time"
 
 	"github.com/example/staccato/internal/config"
+	"github.com/example/staccato/internal/natsauth"
 	"github.com/example/staccato/internal/platform"
 	"github.com/example/staccato/internal/queue"
 )
@@ -62,12 +65,12 @@ type agentPageData struct {
 }
 
 type commitView struct {
-	SHA       string
-	ShortSHA  string
-	Message   string
-	Author    string
-	PushedAt  time.Time
-	CommitURL string
+	SHA        string
+	ShortSHA   string
+	Message    string
+	Author     string
+	PushedAt   time.Time
+	CommitURL  string
 	CheckedOut bool
 }
 
@@ -77,15 +80,20 @@ var templateFS embed.FS
 //go:embed static/*
 var staticFS embed.FS
 
-func NewServer(bus *queue.Bus, state *platform.State, cfg config.Platform) http.Handler {
-	tmpl := template.Must(template.ParseFS(templateFS, "templates/*.html", "templates/partials/*.html"))
+func NewServer(bus *queue.Bus, state *platform.State, cfg config.Platform) (*Server, http.Handler) {
+	tmpl := template.Must(template.New("web").Funcs(template.FuncMap{
+		"repoDisplayName": repoDisplayName,
+	}).ParseFS(templateFS, "templates/*.html", "templates/partials/*.html"))
 	staticSubFS := mustSubFS(staticFS, "static")
 	s := &Server{
 		bus:   bus,
 		state: state,
 		tmpl:  tmpl,
 		auth:  newAuthManager(cfg.SessionSecure),
-		gh:    newGitHubClient(cfg.GitHubClientID, cfg.GitHubClientSecret, cfg.GitHubCallbackURL),
+		gh:    newGitHubClient(cfg.GitHubClientID, cfg.GitHubClientSecret, cfg.GitHubCallbackURL, cfg.GitHubAppID, cfg.GitHubPrivateKey),
+	}
+	state.OnRegister = func(reg queue.RegisterAgent) {
+		s.rotateTokens(context.Background())
 	}
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticSubFS))))
@@ -108,7 +116,202 @@ func NewServer(bus *queue.Bus, state *platform.State, cfg config.Platform) http.
 	mux.HandleFunc("GET /auth/github/login", s.githubLogin)
 	mux.HandleFunc("GET /auth/github/callback", s.githubCallback)
 	mux.HandleFunc("POST /auth/logout", s.logout)
-	return mux
+	mux.HandleFunc("GET /agents/wizard", s.getAgentWizard)
+	mux.HandleFunc("GET /agents/bundle", s.downloadAgentBundle)
+	return s, mux
+}
+
+func (s *Server) StartTokenRotation(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Minute)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.rotateTokens(ctx)
+			}
+		}
+	}()
+}
+
+func (s *Server) rotateTokens(ctx context.Context) {
+	agents := s.state.Agents()
+	for _, agent := range agents {
+		repo := strings.TrimSpace(agent.Registration.Repo)
+		if repo == "" {
+			continue
+		}
+
+		// Only rotate if we have the app configured
+		if !s.gh.configured() || s.gh.appID == "" {
+			continue
+		}
+
+		instID, err := s.gh.findInstallation(ctx, repo)
+		if err != nil {
+			continue
+		}
+
+		token, err := s.gh.installationToken(ctx, instID)
+		if err != nil {
+			continue
+		}
+
+		update := queue.TokenUpdate{
+			AgentID:   agent.Registration.AgentID,
+			Token:     token,
+			ExpiresAt: time.Now().Add(1 * time.Hour),
+		}
+		_ = s.bus.PublishJSON(queue.SubjectTokenUpdate(agent.Registration.AgentID), update)
+	}
+}
+
+func (s *Server) downloadAgentBundle(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
+	_ = session
+
+	agentID := r.URL.Query().Get("agentID")
+	repoURL := r.URL.Query().Get("repo")
+	gitToken := r.URL.Query().Get("token")
+	if gitToken == "" {
+		gitToken = session.AccessToken
+	}
+	if agentID == "" {
+		http.Error(w, "agentID is required", http.StatusBadRequest)
+		return
+	}
+
+	// 1. Generate NKey for the agent
+	seedPath, _, err := natsauth.CreateAgentSeed(agentID, "secrets/agents")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to generate key: %v", err), http.StatusInternalServerError)
+		return
+	}
+	// Update NATS config to include the new key
+	_, _ = natsauth.EnsureBootstrap("secrets/platform.nk", "secrets/agent.nk", "secrets/agents", "nats/server.conf")
+
+	seedData, err := os.ReadFile(seedPath)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to read key: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// 2. Create a bundle in memory (ZIP)
+	buf := new(bytes.Buffer)
+	zw := zip.NewWriter(buf)
+
+	// Add agent binary if it exists
+	if agentBinary, err := os.Open("agent"); err == nil {
+		defer agentBinary.Close()
+		f, _ := zw.Create("staccato-agent")
+		_, _ = io.Copy(f, agentBinary)
+	}
+
+	// Add agent.nk
+	f, _ := zw.Create("agent.nk")
+	_, _ = f.Write(seedData)
+
+	// Add agent.env
+	natsURL := os.Getenv("STACCATO_NATS_URL")
+	if natsURL == "" {
+		natsURL = "nats://localhost:4222"
+	}
+	envContent := fmt.Sprintf("STACCATO_NATS_URL=%s\nSTACCATO_NATS_NKEY=./agent.nk\nSTACCATO_MANIFEST=./agent.manifest.yaml\nSTACCATO_OBJECT_DIR=./var\nSTACCATO_GIT_TOKEN=%s\n", natsURL, gitToken)
+	f, _ = zw.Create("agent.env")
+	_, _ = f.Write([]byte(envContent))
+
+	// Add manifest
+	builtins := r.URL.Query()["builtins"]
+	builtinsYAML := ""
+	if len(builtins) > 0 {
+		builtinsYAML = "\nallowed_builtins:\n"
+		for _, b := range builtins {
+			builtinsYAML += fmt.Sprintf("  - %s\n", b)
+		}
+	}
+	manifestContent := fmt.Sprintf("version: 1\nname: %s\nrepo: %s\nenvironments: ./envs\ndocker:\n  compose_file: docker-compose.yaml\n%s", agentID, repoURL, builtinsYAML)
+	f, _ = zw.Create("agent.manifest.yaml")
+	_, _ = f.Write([]byte(manifestContent))
+
+	// Add start.sh
+	startScript := `#!/bin/bash
+set -e
+# Load environment variables from agent.env
+if [ -f agent.env ]; then
+  set -a
+  source ./agent.env
+  set +a
+fi
+chmod +x staccato-agent
+./staccato-agent
+`
+	f, _ = zw.Create("start.sh")
+	_, _ = f.Write([]byte(startScript))
+
+	// Add stop.sh
+	stopScript := `#!/bin/bash
+echo "Stopping staccato-agent..."
+pkill -f staccato-agent || true
+`
+	f, _ = zw.Create("stop.sh")
+	_, _ = f.Write([]byte(stopScript))
+
+	// Add staccato-agent.service
+	serviceContent, err := os.ReadFile("internal/agent/staccato-agent.service")
+	if err == nil {
+		f, _ = zw.Create("staccato-agent.service")
+		_, _ = f.Write(serviceContent)
+	}
+
+	// Add README instructions
+	readmeContent := fmt.Sprintf(`# Staccato Agent Installation: %s
+
+1. Unzip this bundle on your target VM.
+2. Ensure you have Docker and Docker Compose installed.
+3. Run the agent:
+   chmod +x start.sh stop.sh
+   ./start.sh
+
+4. Stop the agent:
+   ./stop.sh
+
+5. Optional: Install as a systemd service:
+   sudo cp staccato-agent.service /etc/systemd/system/
+   sudo mkdir -p /opt/staccato-agent
+   sudo cp * /opt/staccato-agent/
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now staccato-agent
+
+6. The agent will heartbeat to the platform. 
+7. Find it in the UI and click "Activate" to begin managing environments.
+`, agentID)
+	f, _ = zw.Create("README.md")
+	_, _ = f.Write([]byte(readmeContent))
+
+	// Close ZIP
+	if err := zw.Close(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"staccato-bundle-%s.zip\"", agentID))
+	_, _ = w.Write(buf.Bytes())
+}
+
+func (s *Server) getAgentWizard(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.requireAuth(w, r)
+	if !ok {
+		return
+	}
+	_ = session
+	s.renderTemplate(w, http.StatusOK, "wizard", map[string]any{
+		"GitHubAppConfigured": s.gh.appID != "",
+	})
 }
 
 func (s *Server) activateAgent(w http.ResponseWriter, r *http.Request) {
@@ -697,6 +900,24 @@ func shortSHA(value string) string {
 		return sha
 	}
 	return sha[:8]
+}
+
+func repoDisplayName(repo string) string {
+	repo = strings.TrimSpace(repo)
+	if repo == "" {
+		return ""
+	}
+	if idx := strings.LastIndex(repo, "/"); idx >= 0 {
+		repo = strings.TrimSpace(repo[idx+1:])
+	}
+	if repo == "" {
+		return ""
+	}
+	r := []rune(repo)
+	if len(r) == 1 {
+		return strings.ToUpper(repo)
+	}
+	return strings.ToUpper(string(r[0])) + strings.ToLower(string(r[1:]))
 }
 
 func (s *Server) renderLayout(w http.ResponseWriter, status int, title, body string, data any, user *authUser) {

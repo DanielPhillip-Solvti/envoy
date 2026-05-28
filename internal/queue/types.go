@@ -38,6 +38,10 @@ func SubjectCapabilityRequest(agentID string) string {
 	return fmt.Sprintf("staccato.capability.request.%s", agentID)
 }
 
+func SubjectTokenUpdate(agentID string) string {
+	return fmt.Sprintf("staccato.token.update.%s", agentID)
+}
+
 type ScriptCapability struct {
 	Name    string   `json:"name"`
 	Scope   string   `json:"scope"`
@@ -93,17 +97,17 @@ type CommandRequest struct {
 }
 
 type CommandEvent struct {
-	CommandID string    `json:"command_id"`
-	AgentID   string    `json:"agent_id"`
-	Scope     string    `json:"scope,omitempty"`
-	Name      string    `json:"name,omitempty"`
-	Environment string  `json:"environment,omitempty"`
-	Args      []string  `json:"args,omitempty"`
-	Status    string    `json:"status"`
-	Stream    string    `json:"stream,omitempty"`
-	Message   string    `json:"message,omitempty"`
-	ExitCode  int       `json:"exit_code,omitempty"`
-	SentAt    time.Time `json:"sent_at"`
+	CommandID   string    `json:"command_id"`
+	AgentID     string    `json:"agent_id"`
+	Scope       string    `json:"scope,omitempty"`
+	Name        string    `json:"name,omitempty"`
+	Environment string    `json:"environment,omitempty"`
+	Args        []string  `json:"args,omitempty"`
+	Status      string    `json:"status"`
+	Stream      string    `json:"stream,omitempty"`
+	Message     string    `json:"message,omitempty"`
+	ExitCode    int       `json:"exit_code,omitempty"`
+	SentAt      time.Time `json:"sent_at"`
 }
 
 type LogEvent struct {
@@ -143,4 +147,10 @@ type FileResponse struct {
 type CapabilityRequest struct {
 	AgentID     string    `json:"agent_id"`
 	RequestedAt time.Time `json:"requested_at"`
+}
+
+type TokenUpdate struct {
+	AgentID   string    `json:"agent_id"`
+	Token     string    `json:"token"`
+	ExpiresAt time.Time `json:"expires_at"`
 }

@@ -10,6 +10,8 @@ type Platform struct {
 	GitHubClientID     string
 	GitHubClientSecret string
 	GitHubCallbackURL  string
+	GitHubAppID        string
+	GitHubPrivateKey   string
 	SessionSecure      bool
 }
 
@@ -29,6 +31,8 @@ func PlatformFromEnv() Platform {
 		GitHubClientID:     os.Getenv("STACCATO_GITHUB_CLIENT_ID"),
 		GitHubClientSecret: os.Getenv("STACCATO_GITHUB_CLIENT_SECRET"),
 		GitHubCallbackURL:  env("STACCATO_GITHUB_CALLBACK_URL", "http://localhost:8080/auth/github/callback"),
+		GitHubAppID:        os.Getenv("STACCATO_GITHUB_APP_ID"),
+		GitHubPrivateKey:   os.Getenv("STACCATO_GITHUB_PRIVATE_KEY"),
 		SessionSecure:      env("STACCATO_SESSION_SECURE", "false") == "true",
 	}
 }

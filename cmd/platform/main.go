@@ -48,9 +48,12 @@ func main() {
 		log.Fatalf("subscribe platform events: %v", err)
 	}
 
+	webSrv, webHandler := web.NewServer(bus, state, cfg)
+	webSrv.StartTokenRotation(ctx)
+
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           web.NewServer(bus, state, cfg),
+		Handler:           webHandler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

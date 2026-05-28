@@ -20,6 +20,8 @@ type State struct {
 	events map[string][]queue.CommandEvent
 	files  map[string]queue.FileResponse
 	logs   map[string][]queue.LogEvent
+
+	OnRegister func(reg queue.RegisterAgent)
 }
 
 type AgentView struct {
@@ -53,6 +55,9 @@ func (s *State) ApplyRegistration(reg queue.RegisterAgent) {
 	view.Registration = reg
 	view.LastSeenAt = s.now()
 	s.agents[reg.AgentID] = view
+	if s.OnRegister != nil {
+		go s.OnRegister(reg)
+	}
 }
 
 func (s *State) ApplyHeartbeat(hb queue.Heartbeat) {

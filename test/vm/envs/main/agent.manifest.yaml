@@ -1,0 +1,10 @@
+version: 1
+name: asdn
+repo: https://github.com/DanielPhillip-Solvti/nitrokey-odoo-modules
+environments: ./envs
+docker:
+  compose_file: docker-compose.yaml
+allowed_builtins:
+  - deploy
+  - backup
+  - restore

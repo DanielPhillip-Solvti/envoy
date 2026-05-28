@@ -10,20 +10,27 @@ import (
 )
 
 type Manifest struct {
-	Version      int               `yaml:"version"`
-	Name         string            `yaml:"name"`
-	Repo         string            `yaml:"repo"`
-	Environments string            `yaml:"environments"`
-	Docker       Docker            `yaml:"docker"`
-	VMScripts    map[string]Script `yaml:"vm_scripts"`
-	EnvScripts   map[string]Script `yaml:"env_scripts"`
-	Files        map[string]string `yaml:"files"`
-	BaseDir      string            `yaml:"-"`
+	Version         int               `yaml:"version"`
+	Name            string            `yaml:"name"`
+	Repo            string            `yaml:"repo"`
+	Environments    string            `yaml:"environments"`
+	Docker          Docker            `yaml:"docker"`
+	Odoo            Odoo              `yaml:"odoo"`
+	VMScripts       map[string]Script `yaml:"vm_scripts"`
+	EnvScripts      map[string]Script `yaml:"env_scripts"`
+	Files           map[string]string `yaml:"files"`
+	AllowedBuiltins []string          `yaml:"allowed_builtins"`
+	BaseDir         string            `yaml:"-"`
 }
 
 type Docker struct {
 	ComposeFile    string `yaml:"compose_file"`
 	ProjectPattern string `yaml:"project_pattern"`
+}
+
+type Odoo struct {
+	Version    string `yaml:"version"`
+	AddonsRepo string `yaml:"addons_repo"`
 }
 
 type Script struct {

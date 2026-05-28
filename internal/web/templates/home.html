@@ -1,41 +1,48 @@
 {{define "home_page"}}
 <div class="home-page">
-  <div class="home-header">
-    <h1>Your Agents</h1>
-    <p>Realtime fleet overview powered by queue registrations and heartbeats.</p>
+  <div class="home-header" style="display: flex; justify-content: space-between; align-items: center;">
+    <div>
+      <h1>Your Agents</h1>
+      <p>Realtime fleet overview powered by queue registrations and heartbeats.</p>
+    </div>
+    <button class="button primary" hx-get="/agents/wizard" hx-target="body" hx-swap="beforeend">
+      Install New Agent
+    </button>
   </div>
 
   <div class="agent-grid">
     {{range .Agents}}
-      <a class="agent-tile" href="/agents/{{if .Registration.AgentID}}{{.Registration.AgentID}}{{else}}{{.Heartbeat.AgentID}}{{end}}">
-        <div class="agent-tile-head">
-          <h2>{{if .Registration.Name}}{{.Registration.Name}}{{else if .Heartbeat.AgentID}}{{.Heartbeat.AgentID}}{{else}}unregistered-agent{{end}}</h2>
-          <span class="chip">{{len .Heartbeat.Environments}} envs</span>
+    <a class="agent-tile"
+      href="/agents/{{if .Registration.AgentID}}{{.Registration.AgentID}}{{else}}{{.Heartbeat.AgentID}}{{end}}">
+      <div class="agent-tile-head">
+        <h2>{{if .Registration.Name}}{{.Registration.Name}}{{else if
+          .Heartbeat.AgentID}}{{.Heartbeat.AgentID}}{{else}}unregistered-agent{{end}}</h2>
+        <span class="chip">{{len .Heartbeat.Environments}} envs</span>
+      </div>
+      <dl>
+        <div>
+          <dt>Agent ID</dt>
+          <dd>{{if .Registration.AgentID}}{{.Registration.AgentID}}{{else}}{{.Heartbeat.AgentID}}{{end}}</dd>
         </div>
-        <dl>
-          <div>
-            <dt>Agent ID</dt>
-            <dd>{{if .Registration.AgentID}}{{.Registration.AgentID}}{{else}}{{.Heartbeat.AgentID}}{{end}}</dd>
-          </div>
-          <div>
-            <dt>Repository</dt>
-            <dd>{{if .Registration.Repo}}{{.Registration.Repo}}{{else}}not linked{{end}}</dd>
-          </div>
-          <div>
-            <dt>Scripts</dt>
-            <dd>{{len .Registration.Scripts}}</dd>
-          </div>
-          <div>
-            <dt>Files</dt>
-            <dd>{{len .Registration.Files}}</dd>
-          </div>
-        </dl>
-      </a>
+        <div>
+          <dt>Repository</dt>
+          <dd>{{if .Registration.Repo}}{{.Registration.Repo}}{{else}}not linked{{end}}</dd>
+        </div>
+        <div>
+          <dt>Scripts</dt>
+          <dd>{{len .Registration.Scripts}}</dd>
+        </div>
+        <div>
+          <dt>Files</dt>
+          <dd>{{len .Registration.Files}}</dd>
+        </div>
+      </dl>
+    </a>
     {{else}}
-      <article class="empty-state">
-        <h2>No agents connected</h2>
-        <p>Start an agent on a VM and it will appear here.</p>
-      </article>
+    <article class="empty-state">
+      <h2>No agents connected</h2>
+      <p>Start an agent on a VM and it will appear here.</p>
+    </article>
     {{end}}
   </div>
 </div>

@@ -1,0 +1,63 @@
+{{define "wizard"}}
+<div id="wizard-modal" class="modal">
+  <div class="modal-content">
+    <h2>Install New Agent</h2>
+    <form action="/agents/bundle" method="GET" target="_blank"
+      onsubmit="setTimeout(() => document.getElementById('wizard-modal').remove(), 500)">
+      <div class="form-group">
+        <label for="agentID">Agent ID</label>
+        <input type="text" id="agentID" name="agentID" placeholder="e.g. vm-prod-01" required>
+      </div>
+      <div class="form-group">
+        <label for="repo">Repository URL</label>
+        <input type="url" id="repo" name="repo" placeholder="https://github.com/org/repo" required>
+      </div>
+      <div class="form-group">
+        <label for="token">Git Access Token</label>
+        {{if .GitHubAppConfigured}}
+        <div class="info-box"
+          style="background: rgba(0, 255, 0, 0.1); border: 1px solid rgba(0, 255, 0, 0.2); padding: 10px; border-radius: 4px; font-size: 0.85rem;">
+          <span style="color: #2ecc71;">●</span> <b>GitHub App Managed</b>
+          <p class="muted" style="margin-top: 4px; margin-bottom: 0;">The platform will automatically rotate
+            installation tokens for this agent.</p>
+        </div>
+        <input type="hidden" name="token" value="">
+        {{else}}
+        <input type="password" id="token" name="token" placeholder="ghp_xxxxxxxxxxxx">
+        <p class="muted" style="font-size: 0.8rem; margin-top: 4px;">
+          For permanent installations, a
+          <a href="https://github.com/settings/personal-access-tokens/new" target="_blank"
+            style="color: var(--primary-color);">Fine-grained PAT</a>
+          is recommended.
+        </p>
+        <p class="muted" style="font-size: 0.8rem; margin-top: 4px;">If left blank, your current session's token will be
+          used (~8h expiration).</p>
+        {{end}}
+      </div>
+      <div class="form-group">
+        <label>Internalized Capabilities (Odoo Appliance)</label>
+        <p class="muted" style="font-size: 0.8rem; margin-bottom: 8px;">These features are built directly into the agent
+          binary.</p>
+        <div class="checkbox-group" style="display: flex; gap: 15px; margin-top: 5px;">
+          <label style="font-weight: normal; font-size: 13px;">
+            <input type="checkbox" name="builtins" value="deploy" checked> Deploy (Blue/Green)
+          </label>
+          <label style="font-weight: normal; font-size: 13px;">
+            <input type="checkbox" name="builtins" value="backup" checked> Backup
+          </label>
+          <label style="font-weight: normal; font-size: 13px;">
+            <input type="checkbox" name="builtins" value="restore" checked> Restore
+          </label>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="submit" class="button primary">Download Bundle</button>
+        <button type="button" class="button" onclick="document.getElementById('wizard-modal').remove()">Cancel</button>
+      </div>
+    </form>
+    <div class="instructions muted" style="margin-top: 1rem; font-size: 0.9rem;">
+      <p>This will generate a secure bundle containing everything you need to start a new Odoo agent.</p>
+    </div>
+  </div>
+</div>
+{{end}}
